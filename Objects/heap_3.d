@@ -1,0 +1,10 @@
+.\objects\heap_3.o: freertos\port\heap_3.c
+.\objects\heap_3.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+.\objects\heap_3.o: .\freertos\inc\FreeRTOS.h
+.\objects\heap_3.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stddef.h
+.\objects\heap_3.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\heap_3.o: .\freertos\FreeRTOSConfig.h
+.\objects\heap_3.o: .\freertos\inc\projdefs.h
+.\objects\heap_3.o: .\freertos\inc\portable.h
+.\objects\heap_3.o: .\freertos\inc\deprecated_definitions.h
+.\objects\heap_3.o: .\freertos\port\portmacro.h
