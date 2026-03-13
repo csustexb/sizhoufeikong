@@ -13,3 +13,8 @@ void Delay_us(uint32_t num)
 	uint16_t start = TIM->CNT;
 	while((TIM->CNT - start) < num );
 }
+
+void Delay_ms(uint32_t num)
+{
+	for(uint32_t i =0; i < num; i++) Delay_us(1000);
+}

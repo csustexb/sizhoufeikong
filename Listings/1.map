@@ -90,6 +90,20 @@ Section Cross References
     usart.o(i.UART_Init) refers to stm32f10x_usart.o(i.USART_Cmd) for USART_Cmd
     usart.o(i.fputc) refers to stm32f10x_usart.o(i.USART_GetFlagStatus) for USART_GetFlagStatus
     usart.o(i.fputc) refers to stm32f10x_usart.o(i.USART_SendData) for USART_SendData
+    spi.o(i.SPI_ConfigInit) refers to stm32f10x_rcc.o(i.RCC_APB2PeriphClockCmd) for RCC_APB2PeriphClockCmd
+    spi.o(i.SPI_ConfigInit) refers to stm32f10x_gpio.o(i.GPIO_Init) for GPIO_Init
+    spi.o(i.SPI_ConfigInit) refers to stm32f10x_gpio.o(i.GPIO_SetBits) for GPIO_SetBits
+    spi.o(i.SPI_ConfigInit) refers to stm32f10x_spi.o(i.SPI_Init) for SPI_Init
+    spi.o(i.SPI_ConfigInit) refers to stm32f10x_spi.o(i.SPI_Cmd) for SPI_Cmd
+    spi.o(i.SPI_ReadMulti) refers to spi.o(i.SPI_ReadWriteByte) for SPI_ReadWriteByte
+    spi.o(i.SPI_ReadWriteByte) refers to spi.o(i.SPI_WaitTxEmpty) for SPI_WaitTxEmpty
+    spi.o(i.SPI_ReadWriteByte) refers to stm32f10x_spi.o(i.SPI_I2S_SendData) for SPI_I2S_SendData
+    spi.o(i.SPI_ReadWriteByte) refers to spi.o(i.SPI_WaitRxEmpty) for SPI_WaitRxEmpty
+    spi.o(i.SPI_ReadWriteByte) refers to stm32f10x_spi.o(i.SPI_I2S_ReceiveData) for SPI_I2S_ReceiveData
+    spi.o(i.SPI_ReadWriteMulti) refers to spi.o(i.SPI_ReadWriteByte) for SPI_ReadWriteByte
+    spi.o(i.SPI_WaitRxEmpty) refers to stm32f10x_spi.o(i.SPI_I2S_GetFlagStatus) for SPI_I2S_GetFlagStatus
+    spi.o(i.SPI_WaitTxEmpty) refers to stm32f10x_spi.o(i.SPI_I2S_GetFlagStatus) for SPI_I2S_GetFlagStatus
+    spi.o(i.SPI_WriteMulti) refers to spi.o(i.SPI_ReadWriteByte) for SPI_ReadWriteByte
     led.o(i.LED_Init) refers to stm32f10x_rcc.o(i.RCC_APB2PeriphClockCmd) for RCC_APB2PeriphClockCmd
     led.o(i.LED_Init) refers to stm32f10x_gpio.o(i.GPIO_Init) for GPIO_Init
     pwm.o(i.PWM_Init) refers to stm32f10x_rcc.o(i.RCC_APB2PeriphClockCmd) for RCC_APB2PeriphClockCmd
@@ -122,38 +136,46 @@ Section Cross References
     adc.o(i.ADC_Voltage_Init) refers to stm32f10x_adc.o(i.ADC_GetResetCalibrationStatus) for ADC_GetResetCalibrationStatus
     adc.o(i.ADC_Voltage_Init) refers to stm32f10x_adc.o(i.ADC_StartCalibration) for ADC_StartCalibration
     adc.o(i.ADC_Voltage_Init) refers to stm32f10x_adc.o(i.ADC_GetCalibrationStatus) for ADC_GetCalibrationStatus
-    i2c.o(i.Soft_I2C_Ack) refers to stm32f10x_gpio.o(i.GPIO_ResetBits) for GPIO_ResetBits
-    i2c.o(i.Soft_I2C_Ack) refers to stm32f10x_gpio.o(i.GPIO_SetBits) for GPIO_SetBits
+    i2c.o(i.Soft_I2C_Ack) refers to i2c.o(i.Soft_SDA_OutPut) for Soft_SDA_OutPut
     i2c.o(i.Soft_I2C_Ack) refers to delay.o(i.Delay_us) for Delay_us
-    i2c.o(i.Soft_I2C_InPut) refers to stm32f10x_rcc.o(i.RCC_APB2PeriphClockCmd) for RCC_APB2PeriphClockCmd
-    i2c.o(i.Soft_I2C_InPut) refers to stm32f10x_gpio.o(i.GPIO_Init) for GPIO_Init
-    i2c.o(i.Soft_I2C_InPut) refers to stm32f10x_gpio.o(i.GPIO_SetBits) for GPIO_SetBits
-    i2c.o(i.Soft_I2C_OutPut) refers to stm32f10x_rcc.o(i.RCC_APB2PeriphClockCmd) for RCC_APB2PeriphClockCmd
-    i2c.o(i.Soft_I2C_OutPut) refers to stm32f10x_gpio.o(i.GPIO_Init) for GPIO_Init
-    i2c.o(i.Soft_I2C_OutPut) refers to stm32f10x_gpio.o(i.GPIO_SetBits) for GPIO_SetBits
-    i2c.o(i.Soft_I2C_ReadByte) refers to stm32f10x_gpio.o(i.GPIO_SetBits) for GPIO_SetBits
+    i2c.o(i.Soft_I2C_Init) refers to i2c.o(i.Soft_I2C_SCL_OutOD) for Soft_I2C_SCL_OutOD
+    i2c.o(i.Soft_I2C_Init) refers to i2c.o(i.Soft_SDA_OutPut) for Soft_SDA_OutPut
+    i2c.o(i.Soft_I2C_NoAck) refers to i2c.o(i.Soft_SDA_OutPut) for Soft_SDA_OutPut
+    i2c.o(i.Soft_I2C_NoAck) refers to delay.o(i.Delay_us) for Delay_us
+    i2c.o(i.Soft_I2C_Read) refers to i2c.o(i.Soft_I2C_Start) for Soft_I2C_Start
+    i2c.o(i.Soft_I2C_Read) refers to i2c.o(i.Soft_I2C_SendByte) for Soft_I2C_SendByte
+    i2c.o(i.Soft_I2C_Read) refers to i2c.o(i.Soft_I2C_WaitAck) for Soft_I2C_WaitAck
+    i2c.o(i.Soft_I2C_Read) refers to i2c.o(i.Soft_I2C_Stop) for Soft_I2C_Stop
+    i2c.o(i.Soft_I2C_Read) refers to i2c.o(i.Soft_I2C_ReadByte) for Soft_I2C_ReadByte
+    i2c.o(i.Soft_I2C_Read) refers to i2c.o(i.Soft_I2C_NoAck) for Soft_I2C_NoAck
+    i2c.o(i.Soft_I2C_Read) refers to i2c.o(i.Soft_I2C_Ack) for Soft_I2C_Ack
+    i2c.o(i.Soft_I2C_ReadByte) refers to i2c.o(i.Soft_SDA_InPut) for Soft_SDA_InPut
     i2c.o(i.Soft_I2C_ReadByte) refers to delay.o(i.Delay_us) for Delay_us
-    i2c.o(i.Soft_I2C_ReadByte) refers to stm32f10x_gpio.o(i.GPIO_ResetBits) for GPIO_ResetBits
-    i2c.o(i.Soft_I2C_SendByte) refers to stm32f10x_gpio.o(i.GPIO_SetBits) for GPIO_SetBits
-    i2c.o(i.Soft_I2C_SendByte) refers to stm32f10x_gpio.o(i.GPIO_ResetBits) for GPIO_ResetBits
+    i2c.o(i.Soft_I2C_ReadByte) refers to i2c.o(i.Soft_SDA_OutPut) for Soft_SDA_OutPut
+    i2c.o(i.Soft_I2C_ReadByte_Point) refers to i2c.o(i.Soft_I2C_Start) for Soft_I2C_Start
+    i2c.o(i.Soft_I2C_ReadByte_Point) refers to i2c.o(i.Soft_I2C_SendByte) for Soft_I2C_SendByte
+    i2c.o(i.Soft_I2C_ReadByte_Point) refers to i2c.o(i.Soft_I2C_WaitAck) for Soft_I2C_WaitAck
+    i2c.o(i.Soft_I2C_ReadByte_Point) refers to i2c.o(i.Soft_I2C_Stop) for Soft_I2C_Stop
+    i2c.o(i.Soft_I2C_ReadByte_Point) refers to i2c.o(i.Soft_I2C_ReadByte) for Soft_I2C_ReadByte
+    i2c.o(i.Soft_I2C_ReadByte_Point) refers to i2c.o(i.Soft_I2C_NoAck) for Soft_I2C_NoAck
+    i2c.o(i.Soft_I2C_Send) refers to i2c.o(i.Soft_I2C_Start) for Soft_I2C_Start
+    i2c.o(i.Soft_I2C_Send) refers to i2c.o(i.Soft_I2C_SendByte) for Soft_I2C_SendByte
+    i2c.o(i.Soft_I2C_Send) refers to i2c.o(i.Soft_I2C_WaitAck) for Soft_I2C_WaitAck
+    i2c.o(i.Soft_I2C_Send) refers to i2c.o(i.Soft_I2C_Stop) for Soft_I2C_Stop
+    i2c.o(i.Soft_I2C_SendByte) refers to i2c.o(i.Soft_SDA_OutPut) for Soft_SDA_OutPut
     i2c.o(i.Soft_I2C_SendByte) refers to delay.o(i.Delay_us) for Delay_us
     i2c.o(i.Soft_I2C_SendByte_Point) refers to i2c.o(i.Soft_I2C_Start) for Soft_I2C_Start
     i2c.o(i.Soft_I2C_SendByte_Point) refers to i2c.o(i.Soft_I2C_SendByte) for Soft_I2C_SendByte
     i2c.o(i.Soft_I2C_SendByte_Point) refers to i2c.o(i.Soft_I2C_WaitAck) for Soft_I2C_WaitAck
     i2c.o(i.Soft_I2C_SendByte_Point) refers to i2c.o(i.Soft_I2C_Stop) for Soft_I2C_Stop
-    i2c.o(i.Soft_I2C_Start) refers to stm32f10x_gpio.o(i.GPIO_SetBits) for GPIO_SetBits
+    i2c.o(i.Soft_I2C_Start) refers to i2c.o(i.Soft_SDA_OutPut) for Soft_SDA_OutPut
     i2c.o(i.Soft_I2C_Start) refers to delay.o(i.Delay_us) for Delay_us
-    i2c.o(i.Soft_I2C_Start) refers to stm32f10x_gpio.o(i.GPIO_ResetBits) for GPIO_ResetBits
-    i2c.o(i.Soft_I2C_Stop) refers to stm32f10x_gpio.o(i.GPIO_ResetBits) for GPIO_ResetBits
-    i2c.o(i.Soft_I2C_Stop) refers to stm32f10x_gpio.o(i.GPIO_SetBits) for GPIO_SetBits
+    i2c.o(i.Soft_I2C_Stop) refers to i2c.o(i.Soft_SDA_OutPut) for Soft_SDA_OutPut
     i2c.o(i.Soft_I2C_Stop) refers to delay.o(i.Delay_us) for Delay_us
-    i2c.o(i.Soft_I2C_WaitAck) refers to stm32f10x_gpio.o(i.GPIO_SetBits) for GPIO_SetBits
+    i2c.o(i.Soft_I2C_WaitAck) refers to i2c.o(i.Soft_SDA_InPut) for Soft_SDA_InPut
     i2c.o(i.Soft_I2C_WaitAck) refers to delay.o(i.Delay_us) for Delay_us
-    i2c.o(i.Soft_I2C_WaitAck) refers to i2c.o(i.Soft_I2C_InPut) for Soft_I2C_InPut
-    i2c.o(i.Soft_I2C_WaitAck) refers to stm32f10x_gpio.o(i.GPIO_ResetBits) for GPIO_ResetBits
-    i2c.o(i.Soft_I2V_NoAck) refers to stm32f10x_gpio.o(i.GPIO_SetBits) for GPIO_SetBits
-    i2c.o(i.Soft_I2V_NoAck) refers to delay.o(i.Delay_us) for Delay_us
-    i2c.o(i.Soft_I2V_NoAck) refers to stm32f10x_gpio.o(i.GPIO_ResetBits) for GPIO_ResetBits
+    i2c.o(i.Soft_I2C_WaitAck) refers to i2c.o(i.Soft_SDA_OutPut) for Soft_SDA_OutPut
+    delay.o(i.Delay_ms) refers to delay.o(i.Delay_us) for Delay_us
     event_groups.o(i.vEventGroupClearBitsCallback) refers to event_groups.o(i.xEventGroupClearBits) for xEventGroupClearBits
     event_groups.o(i.vEventGroupDelete) refers to tasks.o(i.vTaskSuspendAll) for vTaskSuspendAll
     event_groups.o(i.vEventGroupDelete) refers to tasks.o(i.vTaskRemoveFromUnorderedEventList) for vTaskRemoveFromUnorderedEventList
@@ -1072,6 +1094,13 @@ Removing Unused input sections from the image.
     Removing stm32f10x_wwdg.o(i.WWDG_SetWindowValue), (40 bytes).
     Removing usart.o(i.UART_Init), (128 bytes).
     Removing usart.o(i.fputc), (36 bytes).
+    Removing spi.o(i.SPI_ConfigInit), (168 bytes).
+    Removing spi.o(i.SPI_ReadMulti), (30 bytes).
+    Removing spi.o(i.SPI_ReadWriteByte), (36 bytes).
+    Removing spi.o(i.SPI_ReadWriteMulti), (36 bytes).
+    Removing spi.o(i.SPI_WaitRxEmpty), (24 bytes).
+    Removing spi.o(i.SPI_WaitTxEmpty), (24 bytes).
+    Removing spi.o(i.SPI_WriteMulti), (28 bytes).
     Removing led.o(i.LED_Init), (44 bytes).
     Removing pwm.o(i.PWM_Init), (264 bytes).
     Removing pwm.o(i.PWM_SerCompare1), (16 bytes).
@@ -1081,16 +1110,22 @@ Removing Unused input sections from the image.
     Removing adc.o(i.ADC_GetValue), (36 bytes).
     Removing adc.o(i.ADC_GetVoltage), (56 bytes).
     Removing adc.o(i.ADC_Voltage_Init), (140 bytes).
-    Removing i2c.o(i.Soft_I2C_Ack), (52 bytes).
-    Removing i2c.o(i.Soft_I2C_InPut), (60 bytes).
-    Removing i2c.o(i.Soft_I2C_OutPut), (60 bytes).
-    Removing i2c.o(i.Soft_I2C_ReadByte), (80 bytes).
-    Removing i2c.o(i.Soft_I2C_SendByte), (80 bytes).
-    Removing i2c.o(i.Soft_I2C_SendByte_Point), (62 bytes).
+    Removing i2c.o(i.Soft_I2C_Ack), (60 bytes).
+    Removing i2c.o(i.Soft_I2C_Init), (44 bytes).
+    Removing i2c.o(i.Soft_I2C_NoAck), (52 bytes).
+    Removing i2c.o(i.Soft_I2C_Read), (140 bytes).
+    Removing i2c.o(i.Soft_I2C_ReadByte), (84 bytes).
+    Removing i2c.o(i.Soft_I2C_ReadByte_Point), (108 bytes).
+    Removing i2c.o(i.Soft_I2C_SCL_OutOD), (28 bytes).
+    Removing i2c.o(i.Soft_I2C_Send), (108 bytes).
+    Removing i2c.o(i.Soft_I2C_SendByte), (84 bytes).
+    Removing i2c.o(i.Soft_I2C_SendByte_Point), (82 bytes).
     Removing i2c.o(i.Soft_I2C_Start), (52 bytes).
     Removing i2c.o(i.Soft_I2C_Stop), (52 bytes).
-    Removing i2c.o(i.Soft_I2C_WaitAck), (88 bytes).
-    Removing i2c.o(i.Soft_I2V_NoAck), (52 bytes).
+    Removing i2c.o(i.Soft_I2C_WaitAck), (100 bytes).
+    Removing i2c.o(i.Soft_SDA_InPut), (40 bytes).
+    Removing i2c.o(i.Soft_SDA_OutPut), (28 bytes).
+    Removing delay.o(i.Delay_ms), (24 bytes).
     Removing delay.o(i.Delay_us), (24 bytes).
     Removing event_groups.o(i.prvTestWaitCondition), (30 bytes).
     Removing event_groups.o(i.vEventGroupClearBitsCallback), (16 bytes).
@@ -1214,7 +1249,7 @@ Removing Unused input sections from the image.
     Removing port.o(i.xPortStartScheduler), (52 bytes).
     Removing port.o(.data), (4 bytes).
 
-619 unused section(s) (total 49250 bytes) removed from the image.
+632 unused section(s) (total 50044 bytes) removed from the image.
 
 ==============================================================================
 
@@ -1612,64 +1647,64 @@ Memory Map of the image
     Exec Addr    Load Addr    Size         Type   Attr      Idx    E Section Name        Object
 
     0x08000000   0x08000000   0x000000ec   Data   RO            3    RESET               startup_stm32f10x_md.o
-    0x080000ec   0x080000ec   0x00000008   Code   RO         4356  * !!!main             c_w.l(__main.o)
-    0x080000f4   0x080000f4   0x00000034   Code   RO         4532    !!!scatter          c_w.l(__scatter.o)
-    0x08000128   0x08000128   0x0000001a   Code   RO         4534    !!handler_copy      c_w.l(__scatter_copy.o)
+    0x080000ec   0x080000ec   0x00000008   Code   RO         4440  * !!!main             c_w.l(__main.o)
+    0x080000f4   0x080000f4   0x00000034   Code   RO         4616    !!!scatter          c_w.l(__scatter.o)
+    0x08000128   0x08000128   0x0000001a   Code   RO         4618    !!handler_copy      c_w.l(__scatter_copy.o)
     0x08000142   0x08000142   0x00000002   PAD
-    0x08000144   0x08000144   0x0000001c   Code   RO         4536    !!handler_zi        c_w.l(__scatter_zi.o)
-    0x08000160   0x08000160   0x00000002   Code   RO         4402    .ARM.Collect$$libinit$$00000000  c_w.l(libinit.o)
-    0x08000162   0x08000162   0x00000000   Code   RO         4409    .ARM.Collect$$libinit$$00000002  c_w.l(libinit2.o)
-    0x08000162   0x08000162   0x00000000   Code   RO         4411    .ARM.Collect$$libinit$$00000004  c_w.l(libinit2.o)
-    0x08000162   0x08000162   0x00000000   Code   RO         4414    .ARM.Collect$$libinit$$0000000A  c_w.l(libinit2.o)
-    0x08000162   0x08000162   0x00000000   Code   RO         4416    .ARM.Collect$$libinit$$0000000C  c_w.l(libinit2.o)
-    0x08000162   0x08000162   0x00000000   Code   RO         4418    .ARM.Collect$$libinit$$0000000E  c_w.l(libinit2.o)
-    0x08000162   0x08000162   0x00000000   Code   RO         4421    .ARM.Collect$$libinit$$00000011  c_w.l(libinit2.o)
-    0x08000162   0x08000162   0x00000000   Code   RO         4423    .ARM.Collect$$libinit$$00000013  c_w.l(libinit2.o)
-    0x08000162   0x08000162   0x00000000   Code   RO         4425    .ARM.Collect$$libinit$$00000015  c_w.l(libinit2.o)
-    0x08000162   0x08000162   0x00000000   Code   RO         4427    .ARM.Collect$$libinit$$00000017  c_w.l(libinit2.o)
-    0x08000162   0x08000162   0x00000000   Code   RO         4429    .ARM.Collect$$libinit$$00000019  c_w.l(libinit2.o)
-    0x08000162   0x08000162   0x00000000   Code   RO         4431    .ARM.Collect$$libinit$$0000001B  c_w.l(libinit2.o)
-    0x08000162   0x08000162   0x00000000   Code   RO         4433    .ARM.Collect$$libinit$$0000001D  c_w.l(libinit2.o)
-    0x08000162   0x08000162   0x00000000   Code   RO         4435    .ARM.Collect$$libinit$$0000001F  c_w.l(libinit2.o)
-    0x08000162   0x08000162   0x00000000   Code   RO         4437    .ARM.Collect$$libinit$$00000021  c_w.l(libinit2.o)
-    0x08000162   0x08000162   0x00000000   Code   RO         4439    .ARM.Collect$$libinit$$00000023  c_w.l(libinit2.o)
-    0x08000162   0x08000162   0x00000000   Code   RO         4441    .ARM.Collect$$libinit$$00000025  c_w.l(libinit2.o)
-    0x08000162   0x08000162   0x00000000   Code   RO         4445    .ARM.Collect$$libinit$$0000002C  c_w.l(libinit2.o)
-    0x08000162   0x08000162   0x00000000   Code   RO         4447    .ARM.Collect$$libinit$$0000002E  c_w.l(libinit2.o)
-    0x08000162   0x08000162   0x00000000   Code   RO         4449    .ARM.Collect$$libinit$$00000030  c_w.l(libinit2.o)
-    0x08000162   0x08000162   0x00000000   Code   RO         4451    .ARM.Collect$$libinit$$00000032  c_w.l(libinit2.o)
-    0x08000162   0x08000162   0x00000002   Code   RO         4452    .ARM.Collect$$libinit$$00000033  c_w.l(libinit2.o)
-    0x08000164   0x08000164   0x00000002   Code   RO         4472    .ARM.Collect$$libshutdown$$00000000  c_w.l(libshutdown.o)
-    0x08000166   0x08000166   0x00000000   Code   RO         4485    .ARM.Collect$$libshutdown$$00000002  c_w.l(libshutdown2.o)
-    0x08000166   0x08000166   0x00000000   Code   RO         4487    .ARM.Collect$$libshutdown$$00000004  c_w.l(libshutdown2.o)
-    0x08000166   0x08000166   0x00000000   Code   RO         4490    .ARM.Collect$$libshutdown$$00000007  c_w.l(libshutdown2.o)
-    0x08000166   0x08000166   0x00000000   Code   RO         4493    .ARM.Collect$$libshutdown$$0000000A  c_w.l(libshutdown2.o)
-    0x08000166   0x08000166   0x00000000   Code   RO         4495    .ARM.Collect$$libshutdown$$0000000C  c_w.l(libshutdown2.o)
-    0x08000166   0x08000166   0x00000000   Code   RO         4498    .ARM.Collect$$libshutdown$$0000000F  c_w.l(libshutdown2.o)
-    0x08000166   0x08000166   0x00000002   Code   RO         4499    .ARM.Collect$$libshutdown$$00000010  c_w.l(libshutdown2.o)
-    0x08000168   0x08000168   0x00000000   Code   RO         4370    .ARM.Collect$$rtentry$$00000000  c_w.l(__rtentry.o)
-    0x08000168   0x08000168   0x00000000   Code   RO         4379    .ARM.Collect$$rtentry$$00000002  c_w.l(__rtentry2.o)
-    0x08000168   0x08000168   0x00000006   Code   RO         4391    .ARM.Collect$$rtentry$$00000004  c_w.l(__rtentry4.o)
-    0x0800016e   0x0800016e   0x00000000   Code   RO         4381    .ARM.Collect$$rtentry$$00000009  c_w.l(__rtentry2.o)
-    0x0800016e   0x0800016e   0x00000004   Code   RO         4382    .ARM.Collect$$rtentry$$0000000A  c_w.l(__rtentry2.o)
-    0x08000172   0x08000172   0x00000000   Code   RO         4384    .ARM.Collect$$rtentry$$0000000C  c_w.l(__rtentry2.o)
-    0x08000172   0x08000172   0x00000008   Code   RO         4385    .ARM.Collect$$rtentry$$0000000D  c_w.l(__rtentry2.o)
-    0x0800017a   0x0800017a   0x00000002   Code   RO         4406    .ARM.Collect$$rtexit$$00000000  c_w.l(rtexit.o)
-    0x0800017c   0x0800017c   0x00000000   Code   RO         4454    .ARM.Collect$$rtexit$$00000002  c_w.l(rtexit2.o)
-    0x0800017c   0x0800017c   0x00000004   Code   RO         4455    .ARM.Collect$$rtexit$$00000003  c_w.l(rtexit2.o)
-    0x08000180   0x08000180   0x00000006   Code   RO         4456    .ARM.Collect$$rtexit$$00000004  c_w.l(rtexit2.o)
+    0x08000144   0x08000144   0x0000001c   Code   RO         4620    !!handler_zi        c_w.l(__scatter_zi.o)
+    0x08000160   0x08000160   0x00000002   Code   RO         4486    .ARM.Collect$$libinit$$00000000  c_w.l(libinit.o)
+    0x08000162   0x08000162   0x00000000   Code   RO         4493    .ARM.Collect$$libinit$$00000002  c_w.l(libinit2.o)
+    0x08000162   0x08000162   0x00000000   Code   RO         4495    .ARM.Collect$$libinit$$00000004  c_w.l(libinit2.o)
+    0x08000162   0x08000162   0x00000000   Code   RO         4498    .ARM.Collect$$libinit$$0000000A  c_w.l(libinit2.o)
+    0x08000162   0x08000162   0x00000000   Code   RO         4500    .ARM.Collect$$libinit$$0000000C  c_w.l(libinit2.o)
+    0x08000162   0x08000162   0x00000000   Code   RO         4502    .ARM.Collect$$libinit$$0000000E  c_w.l(libinit2.o)
+    0x08000162   0x08000162   0x00000000   Code   RO         4505    .ARM.Collect$$libinit$$00000011  c_w.l(libinit2.o)
+    0x08000162   0x08000162   0x00000000   Code   RO         4507    .ARM.Collect$$libinit$$00000013  c_w.l(libinit2.o)
+    0x08000162   0x08000162   0x00000000   Code   RO         4509    .ARM.Collect$$libinit$$00000015  c_w.l(libinit2.o)
+    0x08000162   0x08000162   0x00000000   Code   RO         4511    .ARM.Collect$$libinit$$00000017  c_w.l(libinit2.o)
+    0x08000162   0x08000162   0x00000000   Code   RO         4513    .ARM.Collect$$libinit$$00000019  c_w.l(libinit2.o)
+    0x08000162   0x08000162   0x00000000   Code   RO         4515    .ARM.Collect$$libinit$$0000001B  c_w.l(libinit2.o)
+    0x08000162   0x08000162   0x00000000   Code   RO         4517    .ARM.Collect$$libinit$$0000001D  c_w.l(libinit2.o)
+    0x08000162   0x08000162   0x00000000   Code   RO         4519    .ARM.Collect$$libinit$$0000001F  c_w.l(libinit2.o)
+    0x08000162   0x08000162   0x00000000   Code   RO         4521    .ARM.Collect$$libinit$$00000021  c_w.l(libinit2.o)
+    0x08000162   0x08000162   0x00000000   Code   RO         4523    .ARM.Collect$$libinit$$00000023  c_w.l(libinit2.o)
+    0x08000162   0x08000162   0x00000000   Code   RO         4525    .ARM.Collect$$libinit$$00000025  c_w.l(libinit2.o)
+    0x08000162   0x08000162   0x00000000   Code   RO         4529    .ARM.Collect$$libinit$$0000002C  c_w.l(libinit2.o)
+    0x08000162   0x08000162   0x00000000   Code   RO         4531    .ARM.Collect$$libinit$$0000002E  c_w.l(libinit2.o)
+    0x08000162   0x08000162   0x00000000   Code   RO         4533    .ARM.Collect$$libinit$$00000030  c_w.l(libinit2.o)
+    0x08000162   0x08000162   0x00000000   Code   RO         4535    .ARM.Collect$$libinit$$00000032  c_w.l(libinit2.o)
+    0x08000162   0x08000162   0x00000002   Code   RO         4536    .ARM.Collect$$libinit$$00000033  c_w.l(libinit2.o)
+    0x08000164   0x08000164   0x00000002   Code   RO         4556    .ARM.Collect$$libshutdown$$00000000  c_w.l(libshutdown.o)
+    0x08000166   0x08000166   0x00000000   Code   RO         4569    .ARM.Collect$$libshutdown$$00000002  c_w.l(libshutdown2.o)
+    0x08000166   0x08000166   0x00000000   Code   RO         4571    .ARM.Collect$$libshutdown$$00000004  c_w.l(libshutdown2.o)
+    0x08000166   0x08000166   0x00000000   Code   RO         4574    .ARM.Collect$$libshutdown$$00000007  c_w.l(libshutdown2.o)
+    0x08000166   0x08000166   0x00000000   Code   RO         4577    .ARM.Collect$$libshutdown$$0000000A  c_w.l(libshutdown2.o)
+    0x08000166   0x08000166   0x00000000   Code   RO         4579    .ARM.Collect$$libshutdown$$0000000C  c_w.l(libshutdown2.o)
+    0x08000166   0x08000166   0x00000000   Code   RO         4582    .ARM.Collect$$libshutdown$$0000000F  c_w.l(libshutdown2.o)
+    0x08000166   0x08000166   0x00000002   Code   RO         4583    .ARM.Collect$$libshutdown$$00000010  c_w.l(libshutdown2.o)
+    0x08000168   0x08000168   0x00000000   Code   RO         4454    .ARM.Collect$$rtentry$$00000000  c_w.l(__rtentry.o)
+    0x08000168   0x08000168   0x00000000   Code   RO         4463    .ARM.Collect$$rtentry$$00000002  c_w.l(__rtentry2.o)
+    0x08000168   0x08000168   0x00000006   Code   RO         4475    .ARM.Collect$$rtentry$$00000004  c_w.l(__rtentry4.o)
+    0x0800016e   0x0800016e   0x00000000   Code   RO         4465    .ARM.Collect$$rtentry$$00000009  c_w.l(__rtentry2.o)
+    0x0800016e   0x0800016e   0x00000004   Code   RO         4466    .ARM.Collect$$rtentry$$0000000A  c_w.l(__rtentry2.o)
+    0x08000172   0x08000172   0x00000000   Code   RO         4468    .ARM.Collect$$rtentry$$0000000C  c_w.l(__rtentry2.o)
+    0x08000172   0x08000172   0x00000008   Code   RO         4469    .ARM.Collect$$rtentry$$0000000D  c_w.l(__rtentry2.o)
+    0x0800017a   0x0800017a   0x00000002   Code   RO         4490    .ARM.Collect$$rtexit$$00000000  c_w.l(rtexit.o)
+    0x0800017c   0x0800017c   0x00000000   Code   RO         4538    .ARM.Collect$$rtexit$$00000002  c_w.l(rtexit2.o)
+    0x0800017c   0x0800017c   0x00000004   Code   RO         4539    .ARM.Collect$$rtexit$$00000003  c_w.l(rtexit2.o)
+    0x08000180   0x08000180   0x00000006   Code   RO         4540    .ARM.Collect$$rtexit$$00000004  c_w.l(rtexit2.o)
     0x08000186   0x08000186   0x00000002   PAD
-    0x08000188   0x08000188   0x00000096   Code   RO         4275    .emb_text           port.o
+    0x08000188   0x08000188   0x00000096   Code   RO         4359    .emb_text           port.o
     0x0800021e   0x0800021e   0x00000002   PAD
     0x08000220   0x08000220   0x00000040   Code   RO            4  * .text               startup_stm32f10x_md.o
-    0x08000260   0x08000260   0x00000006   Code   RO         4354    .text               c_w.l(heapauxi.o)
-    0x08000266   0x08000266   0x0000004a   Code   RO         4393    .text               c_w.l(sys_stackheap_outer.o)
-    0x080002b0   0x080002b0   0x00000012   Code   RO         4395    .text               c_w.l(exit.o)
+    0x08000260   0x08000260   0x00000006   Code   RO         4438    .text               c_w.l(heapauxi.o)
+    0x08000266   0x08000266   0x0000004a   Code   RO         4477    .text               c_w.l(sys_stackheap_outer.o)
+    0x080002b0   0x080002b0   0x00000012   Code   RO         4479    .text               c_w.l(exit.o)
     0x080002c2   0x080002c2   0x00000002   PAD
-    0x080002c4   0x080002c4   0x00000008   Code   RO         4403    .text               c_w.l(libspace.o)
-    0x080002cc   0x080002cc   0x0000000c   Code   RO         4464    .text               c_w.l(sys_exit.o)
-    0x080002d8   0x080002d8   0x00000002   Code   RO         4475    .text               c_w.l(use_no_semi.o)
-    0x080002da   0x080002da   0x00000000   Code   RO         4477    .text               c_w.l(indicate_semi.o)
+    0x080002c4   0x080002c4   0x00000008   Code   RO         4487    .text               c_w.l(libspace.o)
+    0x080002cc   0x080002cc   0x0000000c   Code   RO         4548    .text               c_w.l(sys_exit.o)
+    0x080002d8   0x080002d8   0x00000002   Code   RO         4559    .text               c_w.l(use_no_semi.o)
+    0x080002da   0x080002da   0x00000000   Code   RO         4561    .text               c_w.l(indicate_semi.o)
     0x080002da   0x080002da   0x00000004   Code   RO          172    i.BusFault_Handler  stm32f10x_it.o
     0x080002de   0x080002de   0x00000002   Code   RO          173    i.DebugMon_Handler  stm32f10x_it.o
     0x080002e0   0x080002e0   0x00000004   Code   RO          174    i.HardFault_Handler  stm32f10x_it.o
@@ -1678,29 +1713,29 @@ Memory Map of the image
     0x080002ea   0x080002ea   0x00000008   Code   RO           10    i.SetSysClock       system_stm32f10x.o
     0x080002f2   0x080002f2   0x00000002   PAD
     0x080002f4   0x080002f4   0x000000e0   Code   RO           11    i.SetSysClockTo72   system_stm32f10x.o
-    0x080003d4   0x080003d4   0x00000034   Code   RO         4276    i.SysTick_Handler   port.o
+    0x080003d4   0x080003d4   0x00000034   Code   RO         4360    i.SysTick_Handler   port.o
     0x08000408   0x08000408   0x00000060   Code   RO           13    i.SystemInit        system_stm32f10x.o
     0x08000468   0x08000468   0x00000004   Code   RO          177    i.UsageFault_Handler  stm32f10x_it.o
     0x0800046c   0x0800046c   0x00000004   Code   RO          137    i.main              main.o
-    0x08000470   0x08000470   0x00000030   Code   RO         3876    i.prvResetNextTaskUnblockTime  tasks.o
-    0x080004a0   0x080004a0   0x00000060   Code   RO         3899    i.vTaskSwitchContext  tasks.o
-    0x08000500   0x08000500   0x00000190   Code   RO         3911    i.xTaskIncrementTick  tasks.o
-    0x08000690   0x08000690   0x00000020   Data   RO         4530    Region$$Table       anon$$obj.o
+    0x08000470   0x08000470   0x00000030   Code   RO         3960    i.prvResetNextTaskUnblockTime  tasks.o
+    0x080004a0   0x080004a0   0x00000060   Code   RO         3983    i.vTaskSwitchContext  tasks.o
+    0x08000500   0x08000500   0x00000190   Code   RO         3995    i.xTaskIncrementTick  tasks.o
+    0x08000690   0x08000690   0x00000020   Data   RO         4614    Region$$Table       anon$$obj.o
 
 
     Execution Region ER_RW (Exec base: 0x20000000, Load base: 0x080006b0, Size: 0x00000040, Max: 0xffffffff, ABSOLUTE)
 
     Exec Addr    Load Addr    Size         Type   Attr      Idx    E Section Name        Object
 
-    0x20000000   0x080006b0   0x00000040   Data   RW         3916    .data               tasks.o
+    0x20000000   0x080006b0   0x00000040   Data   RW         4000    .data               tasks.o
 
 
     Execution Region ER_ZI (Exec base: 0x20000040, Load base: 0x080006f0, Size: 0x00000728, Max: 0xffffffff, ABSOLUTE)
 
     Exec Addr    Load Addr    Size         Type   Attr      Idx    E Section Name        Object
 
-    0x20000040        -       0x000000c8   Zero   RW         3915    .bss                tasks.o
-    0x20000108        -       0x00000060   Zero   RW         4404    .bss                c_w.l(libspace.o)
+    0x20000040        -       0x000000c8   Zero   RW         3999    .bss                tasks.o
+    0x20000108        -       0x00000060   Zero   RW         4488    .bss                c_w.l(libspace.o)
     0x20000168        -       0x00000200   Zero   RW            2    HEAP                startup_stm32f10x_md.o
     0x20000368        -       0x00000400   Zero   RW            1    STACK               startup_stm32f10x_md.o
 
