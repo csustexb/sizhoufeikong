@@ -1,20 +1,41 @@
-#include "delay.h"
+#include "stm32f10x.h"
 
-/*
-由于while(num--)每次执行的指令不准确，故用此方法来定时都无法精确地设置时间
-我们选择使用硬件的定时计数来写延时
-由于主频72MHz被分频为1MHz，定时器每隔1us就会自动计数
-同时由于此时定时器计数无法得知，且是否会重装初始值都无法确定
-我们使用如下方式来进行避免
-*/
-
-void Delay_us(uint32_t num)
+/**
+  * @brief  微秒级延时
+  * @param  xus 延时时长，范围：0~233015
+  * @retval 无
+  */
+void Delay_us(uint32_t xus)
 {
-	uint16_t start = TIM->CNT;
-	while((TIM->CNT - start) < num );
+	SysTick->LOAD = 72 * xus;				//设置定时器重装值
+	SysTick->VAL = 0x00;					//清空当前计数值
+	SysTick->CTRL = 0x00000005;				//设置时钟源为HCLK，启动定时器
+	while(!(SysTick->CTRL & 0x00010000));	//等待计数到0
+	SysTick->CTRL = 0x00000004;				//关闭定时器
 }
 
-void Delay_ms(uint32_t num)
+/**
+  * @brief  毫秒级延时
+  * @param  xms 延时时长，范围：0~4294967295
+  * @retval 无
+  */
+void Delay_ms(uint32_t xms)
 {
-	for(uint32_t i =0; i < num; i++) Delay_us(1000);
+	while(xms--)
+	{
+		Delay_us(1000);
+	}
 }
+ 
+/**
+  * @brief  秒级延时
+  * @param  xs 延时时长，范围：0~4294967295
+  * @retval 无
+  */
+void Delay_s(uint32_t xs)
+{
+	while(xs--)
+	{
+		Delay_ms(1000);
+	}
+} 

@@ -248,6 +248,7 @@ uint8_t Soft_I2C_Send(uint8_t slave_addr, uint8_t reg, uint8_t *buf, uint8_t len
 	if ((buf == 0) && (len != 0)) return 0;
 	Soft_I2C_Start();
 	
+	
 	Soft_I2C_SendByte(slave_addr << 1);
 	if(Soft_I2C_WaitAck())
 	{
@@ -265,14 +266,17 @@ uint8_t Soft_I2C_Send(uint8_t slave_addr, uint8_t reg, uint8_t *buf, uint8_t len
 	for(uint8_t i = 0; i < len; i++)
 	{
 		Soft_I2C_SendByte(buf[i]);
+		
 		if(Soft_I2C_WaitAck())
 		{
 			Soft_I2C_Stop();
 			return 0;
 		}
+		
 	}
-	Soft_I2C_Stop();
 	
+	Soft_I2C_Stop();
+		
 	return 1;
 }
 

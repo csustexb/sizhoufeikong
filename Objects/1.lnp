@@ -36,6 +36,8 @@
 ".\objects\delay.o"
 ".\objects\mpu6050.o"
 ".\objects\nrf24l01.o"
+".\objects\pid.o"
+".\objects\fly_ctrl.o"
 ".\objects\croutine.o"
 ".\objects\event_groups.o"
 ".\objects\queue.o"

@@ -770,6 +770,26 @@
               <FileType>5</FileType>
               <FilePath>.\HardWare\nrf24l01.h</FilePath>
             </File>
+            <File>
+              <FileName>pid.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\HardWare\pid.c</FilePath>
+            </File>
+            <File>
+              <FileName>pid.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\HardWare\pid.h</FilePath>
+            </File>
+            <File>
+              <FileName>fly_ctrl.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\HardWare\fly_ctrl.c</FilePath>
+            </File>
+            <File>
+              <FileName>fly_ctrl.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\HardWare\fly_ctrl.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

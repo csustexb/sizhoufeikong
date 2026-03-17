@@ -28,3 +28,5 @@
 .\objects\main.o: .\library\stm32f10x_usart.h
 .\objects\main.o: .\library\stm32f10x_wwdg.h
 .\objects\main.o: .\library\misc.h
+.\objects\main.o: .\System\delay.h
+.\objects\main.o: .\HardWare\nrf24l01.h
