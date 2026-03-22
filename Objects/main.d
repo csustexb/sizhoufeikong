@@ -28,5 +28,8 @@
 .\objects\main.o: .\library\stm32f10x_usart.h
 .\objects\main.o: .\library\stm32f10x_wwdg.h
 .\objects\main.o: .\library\misc.h
+.\objects\main.o: .\System\usart.h
+.\objects\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
+.\objects\main.o: .\HardWare\mpu6050.h
+.\objects\main.o: .\System\i2c.h
 .\objects\main.o: .\System\delay.h
-.\objects\main.o: .\HardWare\nrf24l01.h

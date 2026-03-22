@@ -39,3 +39,71 @@ void PID_Reset(PID_t *pid)
 	pid->integral = 0.0f;
 	pid->last_error = 0.0f;
 }
+
+// 设置PID的Kp参数
+void PID_SetKp(PID_t *pid, float kp)
+{
+	if(pid != NULL)
+	{
+		pid->kp = kp;
+	}
+}
+
+// 设置PID的Ki参数
+void PID_SetKi(PID_t *pid, float ki)
+{
+	if(pid != NULL)
+	{
+		pid->ki = ki;
+	}
+}
+
+// 设置PID的Kd参数
+void PID_SetKd(PID_t *pid, float kd)
+{
+	if(pid != NULL)
+	{
+		pid->kd = kd;
+	}
+}
+
+// 同时设置所有PID参数
+void PID_SetGains(PID_t *pid, float kp, float ki, float kd)
+{
+	if(pid != NULL)
+	{
+		pid->kp = kp;
+		pid->ki = ki;
+		pid->kd = kd;
+	}
+}
+
+// 获取Kp参数
+float PID_GetKp(PID_t *pid)
+{
+	if(pid != NULL)
+	{
+		return pid->kp;
+	}
+	return 0.0f;
+}
+
+// 获取Ki参数
+float PID_GetKi(PID_t *pid)
+{
+	if(pid != NULL)
+	{
+		return pid->ki;
+	}
+	return 0.0f;
+}
+
+// 获取Kd参数
+float PID_GetKd(PID_t *pid)
+{
+	if(pid != NULL)
+	{
+		return pid->kd;
+	}
+	return 0.0f;
+}

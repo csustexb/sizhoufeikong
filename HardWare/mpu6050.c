@@ -1,11 +1,13 @@
 #include "mpu6050.h"
-#include "i2c.h"
-#include "delay.h"
+
 #include <math.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846f
 #endif
+
+float acc_weight = 0.02f; // 加速度权重，互补滤波参数
+float gyro_weight = 0.98f; // 陀螺仪权重，互补滤波参数
 
 static MPU6050_Angle g_mpu6050_angle = {0};
 static float gyro_x_offset = 0.0f;
@@ -171,4 +173,38 @@ void MPU6050_GetGyro(MPU6050_Gyro *gyro)
     gyro->GYRO_X = g_mpu6050_gyro.GYRO_X;
     gyro->GYRO_Y = g_mpu6050_gyro.GYRO_Y;
     gyro->GYRO_Z = g_mpu6050_gyro.GYRO_Z;
+}
+
+// 设置加速度权重（互补滤波参数）
+void MPU6050_SetAccWeight(float weight)
+{
+    // 限制权重范围：0.0 ~ 1.0
+    if(weight < 0.0f) weight = 0.0f;
+    if(weight > 1.0f) weight = 1.0f;
+    
+    acc_weight = weight;
+    gyro_weight = 1.0f - weight;  // 保证两个权重和为1
+}
+
+// 设置陀螺仪权重（互补滤波参数）
+void MPU6050_SetGyroWeight(float weight)
+{
+    // 限制权重范围：0.0 ~ 1.0
+    if(weight < 0.0f) weight = 0.0f;
+    if(weight > 1.0f) weight = 1.0f;
+    
+    gyro_weight = weight;
+    acc_weight = 1.0f - weight;  // 保证两个权重和为1
+}
+
+// 获取加速度权重
+float MPU6050_GetAccWeight(void)
+{
+    return acc_weight;
+}
+
+// 获取陀螺仪权重
+float MPU6050_GetGyroWeight(void)
+{
+    return gyro_weight;
 }

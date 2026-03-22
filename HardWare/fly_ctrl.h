@@ -3,6 +3,13 @@
 
 #include "stm32f10x.h"                  // Device header
 
+/*
+油门决定上升
+横滚角是通过增加一侧电机转速，减小另一侧电机转速
+俯仰角则是通过增加前侧电机和减小后侧电机
+偏航则是通过控制对角的电机
+*/
+
 typedef struct
 {
 	float throttle;//油门
@@ -21,8 +28,8 @@ typedef struct
 }Motor_Out;
 
 void Fly_Init(void);
-void Fly_Control_Update(float dt);//更新新的工作参数
+uint8_t Fly_Control_Update(float dt);//更新新的工作参数
 void Fly_Control_SetTarget(float throttle, float target_roll, float target_pitch, float target_yaw_rate);
-void Fly_Control_GetMotorOut(Motor_Out *motor);//获取电机转速参数
+uint8_t Fly_Control_GetMotorOut(Motor_Out *motor);//获取电机转速参数
 
 #endif

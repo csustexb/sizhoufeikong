@@ -2,7 +2,8 @@
 #define __MPU6050_H
 
 #include "stm32f10x.h"
-
+#include "i2c.h"
+#include "delay.h"
 #define MPU6050_ADDR         0x68
 
 #define MPU6050_SMPLRT_DIV   0x19
@@ -78,5 +79,11 @@ uint8_t MPU6050_GyroCalibrate(uint16_t times);
 void MPU6050_AngleUpdate(float dt);
 void MPU6050_GetAngle(MPU6050_Angle *angle);
 void MPU6050_GetGyro(MPU6050_Gyro *gyro);
+
+// 权重改变函数
+void MPU6050_SetAccWeight(float weight);
+void MPU6050_SetGyroWeight(float weight);
+float MPU6050_GetAccWeight(void);
+float MPU6050_GetGyroWeight(void);
 
 #endif

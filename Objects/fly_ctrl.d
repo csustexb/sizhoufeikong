@@ -30,4 +30,7 @@
 .\objects\fly_ctrl.o: .\library\stm32f10x_wwdg.h
 .\objects\fly_ctrl.o: .\library\misc.h
 .\objects\fly_ctrl.o: HardWare\mpu6050.h
+.\objects\fly_ctrl.o: .\System\i2c.h
+.\objects\fly_ctrl.o: .\System\delay.h
 .\objects\fly_ctrl.o: HardWare\pid.h
+.\objects\fly_ctrl.o: .\System\pwm.h
