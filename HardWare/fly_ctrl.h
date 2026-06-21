@@ -1,35 +1,46 @@
-#ifndef __FLY_CTRL_H
-#define __FLY_CTRL_H
+#ifndef FLY_CTRL_H
+#define FLY_CTRL_H
 
-#include "stm32f10x.h"                  // Device header
+#include "stm32f10x.h"
 
 /*
-油门决定上升
-横滚角是通过增加一侧电机转速，减小另一侧电机转速
-俯仰角则是通过增加前侧电机和减小后侧电机
-偏航则是通过控制对角的电机
+Throttle controls lift.
+Roll:  differential thrust on left/right motors.
+Pitch: differential thrust on front/rear motors.
+Yaw:   differential thrust on diagonal motor pairs.
 */
+
+/* Safety: max safe roll/pitch angle before auto-throttle-cut */
+#define MAX_SAFE_ANGLE  60.0f
 
 typedef struct
 {
-	float throttle;//油门
-	float target_roll;//横滚角
-	float target_pitch;//俯仰角
-	float target_yaw_rate;//偏航角速度。只能用角速度，不能用角度，因为没有磁力计（没有参考，都是相对计算的）
-}Fly_target;
+	float throttle;
+	float target_roll;
+	float target_pitch;
+	float target_yaw_rate;  /* Angular rate only (no compass reference) */
+} Fly_target;
 
-//再定义一个电机转速参数
 typedef struct
 {
 	float m1;
 	float m2;
 	float m3;
 	float m4;
-}Motor_Out;
+} Motor_Out;
 
 void Fly_Init(void);
-uint8_t Fly_Control_Update(float dt);//更新新的工作参数
+uint8_t Fly_Control_Update(float dt);
 void Fly_Control_SetTarget(float throttle, float target_roll, float target_pitch, float target_yaw_rate);
-uint8_t Fly_Control_GetMotorOut(Motor_Out *motor);//获取电机转速参数
+uint8_t Fly_Control_GetMotorOut(Motor_Out *motor);
+void Fly_Control_GetTarget(Fly_target *target);
+
+/* PID access interface for CLI tuning */
+#include "pid.h"
+PID_t* Fly_GetRollAnglePID(void);
+PID_t* Fly_GetPitchAnglePID(void);
+PID_t* Fly_GetRollRatePID(void);
+PID_t* Fly_GetPitchRatePID(void);
+PID_t* Fly_GetYawRatePID(void);
 
 #endif

@@ -76,10 +76,10 @@ uint8_t NRF24_ReadReg(uint8_t reg)
 {
     uint8_t value;
 
-    NRF24_CSN_L();//拉低对应片选
-    NRF24_SPI_RW(NRF24_CMD_R_REGISTER | (reg & 0x1F));//读和写寄存器的地址都是后五位，
+    NRF24_CSN_L();//Pull CSN low to select chip
+    NRF24_SPI_RW(NRF24_CMD_R_REGISTER | (reg & 0x1F));//Register addr uses lower 5 bits，
     value = NRF24_SPI_RW(NRF24_CMD_NOP);
-	
+
     NRF24_CSN_H();
     return value;
 }
@@ -91,7 +91,7 @@ uint8_t NRF24_WriteReg(uint8_t reg, uint8_t value)
     NRF24_CSN_L();
     status = NRF24_SPI_RW(NRF24_CMD_W_REGISTER | (reg & 0x1F));
     NRF24_SPI_RW(value);
-	NRF24_SPI_WaitDone();//等待数据完全发送完毕
+	NRF24_SPI_WaitDone();//Wait TX complete
     NRF24_CSN_H();
 
     return status;
@@ -128,7 +128,7 @@ uint8_t NRF24_WriteBuf(uint8_t reg, const uint8_t *buf, uint8_t len)
 
     return status;
 }
-//清除Tx模式
+//Flush TX FIFO
 void NRF24_FlushTx(void)
 {
     NRF24_CSN_L();
@@ -145,7 +145,7 @@ void NRF24_FlushRx(void)
 
 void NRF24_ClearIRQFlags(void)
 {
-    /* 写1清除 RX_DR / TX_DS / MAX_RT */
+    /* Write 1 to clear RX_DR/TX_DS/MAX_RT */
     NRF24_WriteReg(NRF24_REG_STATUS,
                    NRF24_STATUS_RX_DR |
                    NRF24_STATUS_TX_DS |
@@ -158,8 +158,8 @@ uint8_t NRF24_Check(void)
     uint8_t tx_buf[5] = {0xC2, 0xC2, 0xC2, 0xC2, 0xC2};
     uint8_t rx_buf[5] = {0};
 
-	//NRF24_REG_TX_ADDR这个地址是可读可写的地址
-	//通过对同一地址操作来判断问题
+	//TX_ADDR is read/write
+	//Test: write then read-back verify
     NRF24_WriteBuf(NRF24_REG_TX_ADDR, tx_buf, 5);
     NRF24_ReadBuf(NRF24_REG_TX_ADDR, rx_buf, 5);
 
@@ -179,11 +179,11 @@ uint8_t NRF24_Check(void)
 */
 uint8_t NRF24_SetMode(uint8_t mode, const uint8_t *addr, uint8_t channel, uint8_t payload_len)
 {
-    if (addr == 0) return 0;//判空指针
-    if (payload_len == 0 || payload_len > 32) return 0;//判固定包长度
-    if (channel > 125) return 0;//判通道编号
+    if (addr == 0) return 0;//Null guard
+    if (payload_len == 0 || payload_len > 32) return 0;//Validate payload len
+    if (channel > 125) return 0;//Validate channel
 
-    NRF24_CE_L();//使芯片待机，再调整参数
+    NRF24_CE_L();//Standby before config
 
     /* 关闭动态载荷和高级特性，固定载荷最稳 */
     NRF24_WriteReg(NRF24_REG_FEATURE, 0x00);
@@ -206,7 +206,7 @@ uint8_t NRF24_SetMode(uint8_t mode, const uint8_t *addr, uint8_t channel, uint8_
     NRF24_WriteReg(NRF24_REG_SETUP_RETR, 0x1A);
 
     /* 射频通道 */
-    NRF24_WriteReg(NRF24_REG_RF_CH, channel);//规定通讯频道
+    NRF24_WriteReg(NRF24_REG_RF_CH, channel);//Set channel
 
     /* RF_SETUP:
        1Mbps, 0dBm
@@ -222,11 +222,11 @@ uint8_t NRF24_SetMode(uint8_t mode, const uint8_t *addr, uint8_t channel, uint8_
     /* 固定载荷长度 */
     NRF24_WriteReg(NRF24_REG_RX_PW_P0, payload_len);
 
-    /* 清中断 */
+    /* Clear IRQ */
     NRF24_ClearIRQFlags();
 
     /* 清空FIFO */
-	//清除残留数据
+	//Clear stale data
     NRF24_FlushTx();
     NRF24_FlushRx();
 
@@ -270,7 +270,7 @@ uint8_t NRF24_SendPacket(const uint8_t *data, uint8_t len)
     NRF24_FlushTx();
 
     NRF24_CSN_L();
-	//开启写数据模式
+	//TX payload mode
     NRF24_SPI_RW(NRF24_CMD_W_TX_PAYLOAD);
     for (i = 0; i < len; i++)
     {
@@ -278,12 +278,12 @@ uint8_t NRF24_SendPacket(const uint8_t *data, uint8_t len)
     }
     NRF24_CSN_H();
 
-    /* 拉高 CE，启动发送 */
+    /* CE high: start TX */
     NRF24_CE_H();
     Delay_us(20);
     NRF24_CE_L();
 
-    /* 等待发送完成或失败 */
+    /* Wait TX done or fail */
     do
     {
         status = NRF24_ReadReg(NRF24_REG_STATUS);
@@ -295,10 +295,10 @@ uint8_t NRF24_SendPacket(const uint8_t *data, uint8_t len)
             return 0;
         }
     }
-	//若即使没用发送完，发送失败也没被检测，需要及时跳出
-    while ((status & (NRF24_STATUS_TX_DS | NRF24_STATUS_MAX_RT)) == 0);//NRF24_STATUS_TX_DS和NRF24_STATUS_MAX_RT只会有一个置1
+	//Timeout: abort if no TX_DS/MAX_RT
+    while ((status & (NRF24_STATUS_TX_DS | NRF24_STATUS_MAX_RT)) == 0);//Only one of TX_DS/MAX_RT asserted
 
-    /* 清中断 */
+    /* Clear IRQ */
     NRF24_ClearIRQFlags();
 
     if (status & NRF24_STATUS_TX_DS)
@@ -314,10 +314,10 @@ uint8_t NRF24_SendPacket(const uint8_t *data, uint8_t len)
 
     return 0;
 }
-//检测是否有数据到来
+//Check RX data ready
 uint8_t NRF24_IsDataReady(void)
 {
-	//当收到新的数据包的时候，硬件会自动将NRF24_STATUS_RX_DR置1
+	//RX_DR auto-set on new packet
     uint8_t status = NRF24_ReadReg(NRF24_REG_STATUS);
 
     if (status & NRF24_STATUS_RX_DR)
@@ -335,14 +335,14 @@ uint8_t NRF24_ReceivePacket(uint8_t *data, uint8_t len)
     if (data == 0) return 0;
     if (len == 0 || len > 32) return 0;
 
-	//判断是否有数据
+	//Check data available
     if (!NRF24_IsDataReady())
     {
         return 0;
     }
 
     NRF24_CSN_L();
-	//开启读数据模式
+	//RX payload mode
     NRF24_SPI_RW(NRF24_CMD_R_RX_PAYLOAD);
     for (i = 0; i < len; i++)
     {
@@ -352,13 +352,64 @@ uint8_t NRF24_ReceivePacket(uint8_t *data, uint8_t len)
 
     NRF24_ClearIRQFlags();
 
-    /* 如果FIFO异常，也顺手清一下 */
-    if ((NRF24_ReadReg(NRF24_REG_FIFO_STATUS) & NRF24_FIFO_RX_EMPTY) == 0)
-    {
-        /* 还有数据可继续读，这里不强制 flush */
-    }
+    return 1;
+}
+
+/* =========================
+   中断驱动
+   ========================= */
+
+SemaphoreHandle_t xNrf24Semaphore = NULL;
+
+uint8_t NRF24_IRQ_Init(void)
+{
+    GPIO_InitTypeDef GPIO_InitStructure;
+    EXTI_InitTypeDef EXTI_InitStructure;
+    NVIC_InitTypeDef NVIC_InitStructure;
+
+    /* PB0 已在上层初始化为 IPU，这里重新确保配置 */
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB | RCC_APB2Periph_AFIO, ENABLE);
+
+    GPIO_InitStructure.GPIO_Pin = NRF24_IRQ_PIN;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(NRF24_IRQ_PORT, &GPIO_InitStructure);
+
+    /* EXTI0 对应 PB0 */
+    GPIO_EXTILineConfig(GPIO_PortSourceGPIOB, GPIO_PinSource0);
+
+    EXTI_InitStructure.EXTI_Line = EXTI_Line0;
+    EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
+    EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;  /* IRQ 低有效 */
+    EXTI_InitStructure.EXTI_LineCmd = ENABLE;
+    EXTI_Init(&EXTI_InitStructure);
+
+    /* 优先级必须 ≥ configMAX_SYSCALL_INTERRUPT_PRIORITY(库优先级11) 才能安全调用 FreeRTOS API */
+    /* 使用库优先级 12 */
+    NVIC_InitStructure.NVIC_IRQChannel = EXTI0_IRQn;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 12;
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
+    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&NVIC_InitStructure);
 
     return 1;
+}
+
+void EXTI0_IRQHandler(void)
+{
+    if (EXTI_GetITStatus(EXTI_Line0) != RESET)
+    {
+        EXTI_ClearITPendingBit(EXTI_Line0);
+
+        BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+        if (xNrf24Semaphore != NULL)
+        {
+            xSemaphoreGiveFromISR(xNrf24Semaphore, &xHigherPriorityTaskWoken);
+        }
+
+        portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+    }
 }
 
 /* =========================

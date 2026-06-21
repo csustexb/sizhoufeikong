@@ -1,5 +1,5 @@
-#ifndef __PWM_H
-#define __PWM_H
+#ifndef PWM_H
+#define PWM_H
 
 #include "stm32f10x.h"                  // Device header
 
@@ -13,9 +13,9 @@ PWM4->PB9 TIM4_CH4
 */
 
 void PWM_Init(void);
-void PWM_SerCompare1(uint16_t compare);
-void PWM_SerCompare2(uint16_t compare);
-void PWM_SerCompare3(uint16_t compare);
-void PWM_SerCompare4(uint16_t compare);
+void PWM_SetCompare1(uint16_t compare);
+void PWM_SetCompare2(uint16_t compare);
+void PWM_SetCompare3(uint16_t compare);
+void PWM_SetCompare4(uint16_t compare);
 
 #endif

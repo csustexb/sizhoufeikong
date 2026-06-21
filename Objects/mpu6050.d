@@ -31,4 +31,5 @@
 .\objects\mpu6050.o: .\library\misc.h
 .\objects\mpu6050.o: .\System\i2c.h
 .\objects\mpu6050.o: .\System\delay.h
+.\objects\mpu6050.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stddef.h
 .\objects\mpu6050.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\math.h

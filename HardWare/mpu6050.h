@@ -1,5 +1,5 @@
-#ifndef __MPU6050_H
-#define __MPU6050_H
+#ifndef MPU6050_H
+#define MPU6050_H
 
 #include "stm32f10x.h"
 #include "i2c.h"
@@ -68,6 +68,12 @@ typedef struct
     float GYRO_Z;
 }MPU6050_Gyro;
 
+typedef struct
+{
+    MPU6050_Angle angle;
+    MPU6050_Gyro gyro;
+} SensorData_t;
+
 void MPU6050_GetGyro(MPU6050_Gyro *gyro);
 
 uint8_t MPU6050_Init(void);
@@ -80,10 +86,18 @@ void MPU6050_AngleUpdate(float dt);
 void MPU6050_GetAngle(MPU6050_Angle *angle);
 void MPU6050_GetGyro(MPU6050_Gyro *gyro);
 
-// 权重改变函数
-void MPU6050_SetAccWeight(float weight);
-void MPU6050_SetGyroWeight(float weight);
-float MPU6050_GetAccWeight(void);
-float MPU6050_GetGyroWeight(void);
+// Mahony 滤波参数
+void MPU6050_SetMahonyKp(float kp);
+void MPU6050_SetMahonyKi(float ki);
+
+// 中断相关函数
+#define MPU6050_INT_CONFIG   0x37  // INT_PIN_CFG 寄存器地址
+#define MPU6050_INT_ENABLE   0x38  // INT_ENABLE 寄存器地址
+#define MPU6050_INT_STATUS   0x3A  // INT_STATUS 寄存器地址
+
+extern SemaphoreHandle_t xMpuSemaphore;
+
+uint8_t MPU6050_INT_Init(void);           // 初始化中断（PB4）
+void MPU6050_INT_Handler(void);           // 中断处理函数
 
 #endif

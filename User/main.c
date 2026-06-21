@@ -5,20 +5,41 @@
 #include "pwm.h"
 #include "adc.h"
 #include "nrf24l01.h"
+#include "cli.h"
+#include "logger.h"
+#include "led.h"
 #include <stdio.h>
+#include <string.h>
 
-/* FreeRTOS头文件 */
+/* FreeRTOS headers */
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
 #include "semphr.h"
 
-/* 任务堆栈大小定义 */
+/* Interrupt headers */
+#include "stm32f10x_it.h"
+
+/* =============================================================
+ * Safety configuration macros
+ * ============================================================= */
+/* MAX_SAFE_ANGLE is defined in fly_ctrl.h (included above) */
+#define NRF24_TIMEOUT_MS        500     // RC signal loss timeout (ms)
+#define SENSOR_FAIL_LIMIT       200     // Max consecutive I2C failures before shutdown
+#define GYRO_STALL_LIMIT        100     // Max times gyro data unchanged (stall detect)
+#define ARM_YAW_HOLD_MS         2000    // Yaw-right hold time to arm (ms)
+#define ARM_THROTTLE_MAX        5.0f    // Throttle must be below this to arm (%)
+#define BAT_LOW_THRESHOLD       3.3f    // Low battery voltage per cell
+#define IWDG_RELOAD_MS          500     // IWDG timeout period (ms)
+
+/* Task stack sizes */
 #define CTRL_TASK_STACK_SIZE    (256)      // 飞行控制任务
 #define SENSOR_TASK_STACK_SIZE  (256)      // 传感器采集任务
 #define ROCKET_TASK_STACK_SIZE  (256)      // 摇杆控制任务
 #define MONITOR_TASK_STACK_SIZE (128)      // 监测任务
 #define LED_TASK_STACK_SIZE     (128)      // LED指示任务
+#define CLI_TASK_STACK_SIZE     (256)      // 命令行任务
+#define LOGGER_TASK_STACK_SIZE  (256)      // 日志记录任务
 
 /*
 在FreeRTOSConfig.h中，以下宏定义控制了FreeRTOS的功能：
@@ -31,39 +52,29 @@ Queue Set：让一个任务同时等多个队列/信号量
 将这几个宏定义设置为1，才能使用这些功能
 */
 
-/* 任务优先级定义（0~4，4最高） */
+/* Task priorities (0~4, 4 = highest) */
 #define CTRL_TASK_PRIORITY      (4)        // 最高优先级：飞行控制必须及时
 #define ROCKET_TASK_PRIORITY    (3)        // 高优先级：摇杆控制
 #define SENSOR_TASK_PRIORITY    (3)        // 高优先级：传感器采集
 #define MONITOR_TASK_PRIORITY   (2)        // 中优先级：监测输出
 #define LED_TASK_PRIORITY       (1)        // 最低优先级：LED指示
+#define CLI_TASK_PRIORITY       (1)        // 低优先级：命令行
+#define LOGGER_TASK_PRIORITY    (1)        // 低优先级：日志记录
 
-/* 全局数据结构 */
+/* Joystick data structure */
 typedef struct
 {
-    MPU6050_Angle angle;
-    MPU6050_Gyro gyro;
-} SensorData_t;
-
-/* 摇杆数据结构 - 更新于Rocket_Control_Task */
-typedef struct
-{
-    float throttle;        // 油门 (0.0 ~ 100.0)
+    float throttle;        // Throttle (0.0 ~ 100.0)
     float roll_input;      // 横滚输入 (-100.0 ~ 100.0)
     float pitch_input;     // 俯仰输入 (-100.0 ~ 100.0)
     float yaw_input;       // 偏航输入 (-100.0 ~ 100.0)
-    uint8_t armed;         // 解武装标志 (0=未武装, 1=已武装)
+    uint8_t armed;         // Arm/disarm flag (0=未武装, 1=已武装)
 } RocketInput_t;
 
-static SensorData_t sensor_data = {0};
-static Motor_Out motor_out = {0};
-static RocketInput_t rocket_input = {0};  // 摇杆输入
-
-/* 同步信号量和互斥锁 */
-static SemaphoreHandle_t sensor_semaphore;   // 传感器数据更新信号量
-static SemaphoreHandle_t motor_mutex;        // 电机数据互斥锁
-static SemaphoreHandle_t sensor_mutex;       // 传感器数据互斥锁
-static SemaphoreHandle_t rocket_mutex;       // 摇杆数据互斥锁
+/* Communication queues */
+QueueHandle_t sensor_queue;   // 传感器数据队列 (容量2) - 全局，供中断处理使用
+static QueueHandle_t rocket_queue;   // 摇杆数据队列 (容量2)
+static QueueHandle_t motor_queue;    // 电机输出队列 (容量1)
 
 /* =============================================================
  * 摇杆数据处理函数
@@ -79,45 +90,45 @@ static SemaphoreHandle_t rocket_mutex;       // 摇杆数据互斥锁
  */
 static float ADC_RawToPercent(uint16_t adc_value, uint16_t deadzone, uint8_t is_throttle)
 {
-    // 12位ADC，中点为2048
+    // 12-bit ADC, center = 2048
     const uint16_t ADC_MID = 2048;
     const float ADC_MAX = 4095.0f;
-    
+
     float percent;
-    
-    if(is_throttle)
+
+    if (is_throttle)
     {
-        // 油门模式：0-4095 → 0-100%
+        // Throttle mode：0-4095 → 0-100%
         percent = (adc_value / ADC_MAX) * 100.0f;
     }
     else
     {
-        // 摇杆模式：处理死区
+        // Joystick mode: apply deadzone
         int16_t offset = (int16_t)adc_value - ADC_MID;
-        
-        if(offset > -deadzone && offset < deadzone)
+
+        if (offset > -deadzone && offset < deadzone)
         {
-            // 在死区内，视为0
+            // Inside deadzone, treat as zero
             return 0.0f;
         }
-        
-        // 超出死区的部分进行线性映射
-        if(offset >= 0)
+
+        // Linear mapping beyond deadzone
+        if (offset >= 0)
         {
-            // 正方向：deadzone ~ 2047 → 0 ~ 100%
+            // Positive direction：deadzone ~ 2047 → 0 ~ 100%
             percent = ((float)offset - deadzone) / (ADC_MID - deadzone) * 100.0f;
         }
         else
         {
-            // 负方向：-2048 ~ -deadzone → -100 ~ 0%
+            // Negative direction：-2048 ~ -deadzone → -100 ~ 0%
             percent = ((float)offset + deadzone) / (ADC_MID - deadzone) * 100.0f;
         }
     }
-    
-    // 限制范围
-    if(percent > 100.0f) percent = 100.0f;
-    if(percent < -100.0f) percent = -100.0f;
-    
+
+    // Clamp range
+    if (percent > 100.0f) percent = 100.0f;
+    if (percent < -100.0f) percent = -100.0f;
+
     return percent;
 }
 
@@ -145,20 +156,20 @@ static float LowPassFilter(float old_value, float new_value, float alpha)
 static uint8_t NRF24_ReceiveRocketData(RocketInput_t *pRocket)
 {
     RC_CtrlPacket_t rc_pkt;
-    
-    // 检查是否有新数据
-    if(!NRF24_IsDataReady())
+
+    // Check for new data
+    if (!NRF24_IsDataReady())
     {
-        return 0;  // 没有新数据
+        return 0;  // No new data
     }
-    
-    // 接收控制包
-    if(!FC_ReceiveControl(&rc_pkt))
+
+    // Receive control packet
+    if (!FC_ReceiveControl(&rc_pkt))
     {
-        return 0;  // 接收失败或校验错误
+        return 0;  // Receive failed or checksum error
     }
-    
-    /* 
+
+    /*
      * NRF24L01的控制包格式：
      * - throttle: 1000~2000 (PWM脉宽微秒)
      * - roll:     -500~500   (角度或速度)
@@ -166,23 +177,23 @@ static uint8_t NRF24_ReceiveRocketData(RocketInput_t *pRocket)
      * - yaw:      -500~500   (角度或速度)
      * - sw1, sw2: 开关状态
      */
-    
-    // 油门：1000~2000us → 0~100%
-    // 遥控通常映射：1000us=0%, 1500us=50%, 2000us=100%
+
+    // Throttle：1000~2000us → 0~100%
+    // Typical RC mapping：1000us=0%, 1500us=50%, 2000us=100%
     pRocket->throttle = ((float)(rc_pkt.throttle - 1000) / 1000.0f) * 100.0f;
-    if(pRocket->throttle < 0.0f) pRocket->throttle = 0.0f;
-    if(pRocket->throttle > 100.0f) pRocket->throttle = 100.0f;
-    
-    // 横滚、俯仰、偏航：-500~500 → -100~100%
+    if (pRocket->throttle < 0.0f) pRocket->throttle = 0.0f;
+    if (pRocket->throttle > 100.0f) pRocket->throttle = 100.0f;
+
+    // Roll, pitch, yaw：-500~500 → -100~100%
     pRocket->roll_input = ((float)rc_pkt.roll / 500.0f) * 100.0f;
     pRocket->pitch_input = ((float)rc_pkt.pitch / 500.0f) * 100.0f;
     pRocket->yaw_input = ((float)rc_pkt.yaw / 500.0f) * 100.0f;
-    
-    // 武装标志：通常由开关控制
+
+    // Arm flag：通常由开关控制
     // sw1 可用作武装开关 (0=未武装, 非0=已武装)
     pRocket->armed = (rc_pkt.sw1 != 0) ? 1 : 0;
-    
-    return 1;  // 成功接收并转换
+
+    return 1;  // Successfully received and converted
 }
 
 /* =============================================================
@@ -192,142 +203,204 @@ static uint8_t NRF24_ReceiveRocketData(RocketInput_t *pRocket)
  * ============================================================= */
 void Rocket_Control_Task(void *pvParameters)
 {
-    TickType_t xLastWakeTime = xTaskGetTickCount();
-    const TickType_t xFrequency = pdMS_TO_TICKS(20);  // 20ms周期
-    
-    RocketInput_t temp_rocket;
-    
-    // 上一次的过滤值（用于低通滤波）
+    RocketInput_t temp_rocket = {0};
+
+    /* Previous filtered values for low-pass filter */
     static float last_throttle = 0.0f;
     static float last_roll = 0.0f;
     static float last_pitch = 0.0f;
     static float last_yaw = 0.0f;
-    
-    // 低通滤波系数（0.15 = 新值权重15%）
+
     const float FILTER_ALPHA = 0.15f;
-    
-    // 通信超时计数器（10个周期未收到数据 = 200ms超时）
-    uint8_t timeout_count = 0;
-    const uint8_t TIMEOUT_THRESHOLD = 10;
-    
-    printf("摇杆控制任务启动，准备接收NRF24L01信号...\r\n");
-    
-    while(1)
+
+    /* Two-stage arming state machine (S4) */
+    typedef enum { ARM_IDLE, ARM_WAIT, ARMED } ArmState_t;
+    ArmState_t arm_state = ARM_IDLE;
+    uint32_t  arm_hold_start = 0;
+
+    /* Signal loss timeout tracking (S1) */
+    uint32_t last_signal_tick = 0;
+
+    printf("Rocket ctrl task started, waiting NRF24 int...\r\n");
+
+    while (1)
     {
-        // 尝试从NRF24L01接收遥控数据
-        if(NRF24_ReceiveRocketData(&temp_rocket))
+        if (xSemaphoreTake(xNrf24Semaphore, pdMS_TO_TICKS(200)) == pdTRUE)
         {
-            // 成功接收到新数据
-            timeout_count = 0;
-            
-            // 应用低通滤波器（平滑数据）
-            temp_rocket.throttle = LowPassFilter(last_throttle, temp_rocket.throttle, FILTER_ALPHA);
-            temp_rocket.roll_input = LowPassFilter(last_roll, temp_rocket.roll_input, FILTER_ALPHA);
-            temp_rocket.pitch_input = LowPassFilter(last_pitch, temp_rocket.pitch_input, FILTER_ALPHA);
-            temp_rocket.yaw_input = LowPassFilter(last_yaw, temp_rocket.yaw_input, FILTER_ALPHA);
-            
-            // 保存滤波值用于下一次迭代
-            last_throttle = temp_rocket.throttle;
-            last_roll = temp_rocket.roll_input;
-            last_pitch = temp_rocket.pitch_input;
-            last_yaw = temp_rocket.yaw_input;
+            while (NRF24_ReceiveRocketData(&temp_rocket))
+            {
+                /* Apply low-pass filter */
+                temp_rocket.throttle    = LowPassFilter(last_throttle, temp_rocket.throttle, FILTER_ALPHA);
+                temp_rocket.roll_input  = LowPassFilter(last_roll, temp_rocket.roll_input, FILTER_ALPHA);
+                temp_rocket.pitch_input = LowPassFilter(last_pitch, temp_rocket.pitch_input, FILTER_ALPHA);
+                temp_rocket.yaw_input   = LowPassFilter(last_yaw, temp_rocket.yaw_input, FILTER_ALPHA);
+
+                last_throttle = temp_rocket.throttle;
+                last_roll     = temp_rocket.roll_input;
+                last_pitch    = temp_rocket.pitch_input;
+                last_yaw      = temp_rocket.yaw_input;
+
+                last_signal_tick = xTaskGetTickCount();
+            }
+
+            /* ---- Two-stage arming state machine (S4) ---- */
+            /* Arm condition: throttle < 5% AND yaw > 90% right, hold for ARM_YAW_HOLD_MS */
+            uint8_t arm_combo = (temp_rocket.throttle < ARM_THROTTLE_MAX)
+                             && (temp_rocket.yaw_input > 90.0f);
+
+            switch (arm_state)
+            {
+            case ARM_IDLE:
+                if (arm_combo)
+                {
+                    arm_state = ARM_WAIT;
+                    arm_hold_start = xTaskGetTickCount();
+                }
+                break;
+
+            case ARM_WAIT:
+                if (!arm_combo)
+                {
+                    arm_state = ARM_IDLE;  /* Released early, abort */
+                }
+                else if ((xTaskGetTickCount() - arm_hold_start) >= pdMS_TO_TICKS(ARM_YAW_HOLD_MS))
+                {
+                    arm_state = ARMED;
+                    printf("[SAFETY] Motors ARMED\r\n");
+                }
+                break;
+
+            case ARMED:
+                temp_rocket.armed = 1;
+                if (temp_rocket.throttle < ARM_THROTTLE_MAX
+                 && temp_rocket.yaw_input < -90.0f)
+                {
+                    /* Disarm: throttle low + yaw full left */
+                    arm_state = ARM_IDLE;
+                    temp_rocket.armed = 0;
+                    printf("[SAFETY] Motors DISARMED\r\n");
+                }
+                break;
+            }
         }
         else
         {
-            // 未接收到新数据
-            timeout_count++;
-            
-            if(timeout_count >= TIMEOUT_THRESHOLD)
+            /* Signal loss timeout (S1): auto-disarm after NRF24_TIMEOUT_MS */
+            if ((xTaskGetTickCount() - last_signal_tick) >= pdMS_TO_TICKS(NRF24_TIMEOUT_MS))
             {
-                // 通信丢失 - 安全状态：断油、清零指令、解武装
-                printf("[WARNING] NRF24L01通信丢失!\r\n");
-                temp_rocket.throttle = 0.0f;
-                temp_rocket.roll_input = 0.0f;
+                if (arm_state == ARMED)
+                {
+                    printf("[SAFETY] RC signal lost, auto-disarm!\r\n");
+                }
+                arm_state = ARM_IDLE;
+                temp_rocket.throttle    = 0.0f;
+                temp_rocket.roll_input  = 0.0f;
                 temp_rocket.pitch_input = 0.0f;
-                temp_rocket.yaw_input = 0.0f;
-                temp_rocket.armed = 0;  // 立即解武装
-                
-                // 保存的值保持不变，用于下次恢复
-                timeout_count = TIMEOUT_THRESHOLD;  // 不再增加
+                temp_rocket.yaw_input   = 0.0f;
+                temp_rocket.armed       = 0;
             }
-            // 否则保持上一次的值（可选的失链处理）
         }
-        
-        // 保存摇杆数据到共享变量（受保护）
-        if(xSemaphoreTake(rocket_mutex, pdMS_TO_TICKS(2)) == pdTRUE)
-        {
-            rocket_input = temp_rocket;
-            xSemaphoreGive(rocket_mutex);
-        }
-        
-        // 周期性等待
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+
+        // Send joystick data to queue（不覆盖旧数据）
+        xQueueSend(rocket_queue, &temp_rocket, 0);
     }
 }
 
 /* =============================================================
  * 任务2：飞行控制任务（最高优先级）
  * 功能：执行PID控制算法，计算电机速度
- * 周期：10ms（100Hz）
+ * 周期：由传感器数据更新触发（5ms）
  * ============================================================= */
 void Fly_Control_Task(void *pvParameters)
 {
-    TickType_t xLastWakeTime = xTaskGetTickCount();
-    const TickType_t xFrequency = pdMS_TO_TICKS(10);  // 10ms周期
-    Motor_Out temp_motor;
-    RocketInput_t temp_rocket;
-    
-    while(1)
+    Motor_Out temp_motor = {0};
+    RocketInput_t temp_rocket = {0};
+    SensorData_t temp_sensor = {0};
+
+    printf("Flight ctrl task started, waiting sensor data...\r\n");
+
+    while (1)
     {
-        // 获取摇杆输入
-        if(xSemaphoreTake(rocket_mutex, pdMS_TO_TICKS(2)) == pdTRUE)
+        /* Feed IWDG (S6): highest-priority task feeds the watchdog */
+        IWDG_ReloadCounter();
+
+        /* Wait for sensor data (5ms period, 20ms timeout) */
+        if (xQueueReceive(sensor_queue, &temp_sensor, pdMS_TO_TICKS(20)) == pdTRUE)
         {
-            temp_rocket = rocket_input;
-            xSemaphoreGive(rocket_mutex);
-        }
-        
-        // 只有在武装状态下才执行控制
-        if(temp_rocket.armed == 1)
-        {
-            // 根据摇杆输入转换为飞行目标
-            // 油门：0-100% → PWM 1000-2000us
-            float throttle = 1000.0f + (temp_rocket.throttle / 100.0f) * 1000.0f;
-            
-            // 角度范围：-45° ~ +45°
-            float target_roll = (temp_rocket.roll_input / 100.0f) * 45.0f;
-            float target_pitch = (temp_rocket.pitch_input / 100.0f) * 45.0f;
-            
-            // 角速度范围：-180°/s ~ +180°/s
-            float target_yaw_rate = (temp_rocket.yaw_input / 100.0f) * 180.0f;
-            
-            // 设置飞行目标
-            Fly_Control_SetTarget(throttle, target_roll, target_pitch, target_yaw_rate);
+            /* Non-blocking: get latest joystick data if available */
+            xQueueReceive(rocket_queue, &temp_rocket, 0);
+
+            // Only execute control when armed
+            if (temp_rocket.armed == 1)
+            {
+                // Convert joystick input to flight targets
+                // Throttle：0-100% → PWM 1000-2000us
+                float throttle = 1000.0f + (temp_rocket.throttle / 100.0f) * 1000.0f;
+
+                // 角度范围：-45° ~ +45°
+                float target_roll = (temp_rocket.roll_input / 100.0f) * 45.0f;
+                float target_pitch = (temp_rocket.pitch_input / 100.0f) * 45.0f;
+
+                // 角速度范围：-180°/s ~ +180°/s
+                float target_yaw_rate = (temp_rocket.yaw_input / 100.0f) * 180.0f;
+
+                // 设置飞行目标
+                Fly_Control_SetTarget(throttle, target_roll, target_pitch, target_yaw_rate);
+            }
+            else
+            {
+                // Disarmed: stop motors
+                Fly_Control_SetTarget(1000.0f, 0.0f, 0.0f, 0.0f);
+            }
+
+            // Execute flight control update（dt = 0.005s = 5ms）
+            Fly_Control_Update(0.005f);
+            Fly_Control_GetMotorOut(&temp_motor);
+
+            {
+                static uint32_t log_tick = 0;
+                log_tick++;
+                if (log_tick % 2 == 0)   /* 100Hz logging (was 50Hz) */
+                {
+                    LogEntry_t log_entry;
+                    Fly_target  log_target;
+                    Fly_Control_GetTarget(&log_target);
+
+                    log_entry.magic       = 0x4C4F4745;
+                    log_entry.seq         = log_tick / 2;
+                    log_entry.timestamp_ms = xTaskGetTickCount();
+                    log_entry.roll   = temp_sensor.angle.Roll;
+                    log_entry.pitch  = temp_sensor.angle.Pitch;
+                    log_entry.yaw    = temp_sensor.angle.Yaw;
+                    log_entry.gyro_x = temp_sensor.gyro.GYRO_X;
+                    log_entry.gyro_y = temp_sensor.gyro.GYRO_Y;
+                    log_entry.gyro_z = temp_sensor.gyro.GYRO_Z;
+                    log_entry.m1 = temp_motor.m1;
+                    log_entry.m2 = temp_motor.m2;
+                    log_entry.m3 = temp_motor.m3;
+                    log_entry.m4 = temp_motor.m4;
+                    log_entry.target_roll     = log_target.target_roll;
+                    log_entry.target_pitch    = log_target.target_pitch;
+                    log_entry.target_yaw_rate = log_target.target_yaw_rate;
+                    LOG_WriteEntry(&log_entry);
+                }
+            }
+
+            // 发送电机输出到队列（覆盖旧数据）
+            xQueueOverwrite(motor_queue, &temp_motor);
         }
         else
         {
-            // 未武装状态：电机停止
-            Fly_Control_SetTarget(1000.0f, 0.0f, 0.0f, 0.0f);
+            // Sensor signal timeout（可能是传感器故障）
+            printf("[WARNING] 飞行控制任务：Sensor signal timeout！\r\n");
+
+            // Safety: stop motors
+            temp_motor.m1 = 1000.0f;
+            temp_motor.m2 = 1000.0f;
+            temp_motor.m3 = 1000.0f;
+            temp_motor.m4 = 1000.0f;
+            xQueueOverwrite(motor_queue, &temp_motor);
         }
-        
-        // 获取最新的传感器数据
-        if(xSemaphoreTake(sensor_mutex, pdMS_TO_TICKS(2)) == pdTRUE)
-        {
-            // 执行飞行控制更新（dt = 0.01s）
-            Fly_Control_Update(0.01f);
-            Fly_Control_GetMotorOut(&temp_motor);
-            
-            xSemaphoreGive(sensor_mutex);
-        }
-        
-        // 更新电机输出（受保护的写入）
-        if(xSemaphoreTake(motor_mutex, pdMS_TO_TICKS(1)) == pdTRUE)
-        {
-            motor_out = temp_motor;
-            xSemaphoreGive(motor_mutex);
-        }
-        
-        // 周期性等待
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
 
@@ -336,28 +409,88 @@ void Fly_Control_Task(void *pvParameters)
  * 功能：读取MPU6050传感器数据，更新角度
  * 周期：5ms（200Hz）
  * ============================================================= */
+/* =============================================================
+ * 任务3：传感器采集任务（优先级 3）
+ * 功能：等 MPU6050 中断信号量，I2C 读取原始数据，互补滤波更新姿态
+ * 周期：5ms（200Hz）
+ * ============================================================= */
 void Sensor_Read_Task(void *pvParameters)
 {
     TickType_t xLastWakeTime = xTaskGetTickCount();
-    const TickType_t xFrequency = pdMS_TO_TICKS(5);   // 5ms周期
-    
-    while(1)
+    const TickType_t xFrequency = pdMS_TO_TICKS(5);
+
+    SensorData_t temp_sensor = {0};
+
+    printf("Sensor Read Task Started (200Hz)...\r\n");
+
+    /* S2: Sensor anomaly tracking */
+    static uint16_t i2c_fail_cnt = 0;
+    static float    last_gyro_x = 0.0f, last_gyro_y = 0.0f, last_gyro_z = 0.0f;
+    static uint16_t gyro_stall_cnt = 0;
+
+    while (1)
     {
-        // 更新姿态数据
-        MPU6050_AngleUpdate(0.005f);  // dt = 0.005s = 5ms
-        
-        // 临界区：更新共享数据
-        if(xSemaphoreTake(sensor_mutex, pdMS_TO_TICKS(2)) == pdTRUE)
+        /* Wait for MPU interrupt semaphore, 5ms timeout fallback */
+        if (xSemaphoreTake(xMpuSemaphore, xFrequency) == pdFALSE)
         {
-            MPU6050_GetAngle(&sensor_data.angle);
-            MPU6050_GetGyro(&sensor_data.gyro);
-            xSemaphoreGive(sensor_mutex);
+            static uint16_t sem_timeout_cnt = 0;
+            if (++sem_timeout_cnt >= 200)  /* ~1 sec */
+            {
+                printf("[WARNING] MPU6050 semaphore timeout, possible interrupt loss\r\n");
+                sem_timeout_cnt = 0;
+            }
         }
-        
-        // 通知飞行控制任务数据已更新
-        xSemaphoreGive(sensor_semaphore);
-        
-        // 周期性等待
+
+        /* Update attitude (I2C + complementary filter in task context) */
+        MPU6050_AngleUpdate(0.005f);
+
+        /* Package latest data for flight control task */
+        MPU6050_GetAngle(&temp_sensor.angle);
+        MPU6050_GetGyro(&temp_sensor.gyro);
+
+        /* S2a: I2C consecutive failure detection */
+        if (temp_sensor.gyro.GYRO_X == 0.0f
+         && temp_sensor.gyro.GYRO_Y == 0.0f
+         && temp_sensor.gyro.GYRO_Z == 0.0f)
+        {
+            i2c_fail_cnt++;
+            if (i2c_fail_cnt >= SENSOR_FAIL_LIMIT)
+            {
+                printf("[SAFETY] MPU6050 I2C failure! Stopping motors.\r\n");
+                /* Set zero-rate data to force motors off in flight ctrl */
+                temp_sensor.gyro.GYRO_X = 0.0f;
+                temp_sensor.gyro.GYRO_Y = 0.0f;
+                temp_sensor.gyro.GYRO_Z = 0.0f;
+            }
+        }
+        else
+        {
+            i2c_fail_cnt = 0;
+        }
+
+        /* S2b: Gyro stall detection (data unchanged for many cycles) */
+        if (temp_sensor.gyro.GYRO_X == last_gyro_x
+         && temp_sensor.gyro.GYRO_Y == last_gyro_y
+         && temp_sensor.gyro.GYRO_Z == last_gyro_z)
+        {
+            gyro_stall_cnt++;
+            if (gyro_stall_cnt >= GYRO_STALL_LIMIT)
+            {
+                printf("[SAFETY] Gyro data stalled! Possible sensor freeze.\r\n");
+                gyro_stall_cnt = 0;
+            }
+        }
+        else
+        {
+            gyro_stall_cnt = 0;
+            last_gyro_x = temp_sensor.gyro.GYRO_X;
+            last_gyro_y = temp_sensor.gyro.GYRO_Y;
+            last_gyro_z = temp_sensor.gyro.GYRO_Z;
+        }
+
+        xQueueOverwrite(sensor_queue, &temp_sensor);
+
+        // 精确 5ms 周期
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
@@ -370,179 +503,257 @@ void Monitor_Task(void *pvParameters)
 {
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(200);  // 200ms周期
-    
-    SensorData_t temp_sensor;
-    Motor_Out temp_motor;
-    RocketInput_t temp_rocket;
-    
-    while(1)
+
+    SensorData_t temp_sensor = {0};
+    Motor_Out temp_motor = {0};
+    RocketInput_t temp_rocket = {0};
+
+    while (1)
     {
-        // 读取传感器数据（受保护）
-        if(xSemaphoreTake(sensor_mutex, pdMS_TO_TICKS(5)) == pdTRUE)
-        {
-            temp_sensor = sensor_data;
-            xSemaphoreGive(sensor_mutex);
-        }
-        
-        // 读取电机输出（受保护）
-        if(xSemaphoreTake(motor_mutex, pdMS_TO_TICKS(5)) == pdTRUE)
-        {
-            temp_motor = motor_out;
-            xSemaphoreGive(motor_mutex);
-        }
-        
-        // 读取摇杆输入（受保护）
-        if(xSemaphoreTake(rocket_mutex, pdMS_TO_TICKS(5)) == pdTRUE)
-        {
-            temp_rocket = rocket_input;
-            xSemaphoreGive(rocket_mutex);
-        }
-        
+        // 非阻塞方式尝试读取最新数据（如果有的话）
+        xQueuePeek(sensor_queue, &temp_sensor, 0);
+        xQueuePeek(motor_queue, &temp_motor, 0);
+        xQueuePeek(rocket_queue, &temp_rocket, 0);
+
         // 输出调试信息
-        printf("\r\n===== 摇杆输入 =====\r\n");
-        printf("油门: %.1f%%  横滚: %.1f%%  俯仰: %.1f%%  偏航: %.1f%%\r\n",
-               temp_rocket.throttle,
-               temp_rocket.roll_input,
-               temp_rocket.pitch_input,
-               temp_rocket.yaw_input);
-        printf("武装状态: %s\r\n", temp_rocket.armed ? "已武装" : "未武装");
-        
-        printf("===== 姿态数据 =====\r\n");
-        printf("Pitch: %.2f°  Roll: %.2f°  Yaw: %.2f°\r\n", 
-               temp_sensor.angle.Pitch, 
-               temp_sensor.angle.Roll, 
-               temp_sensor.angle.Yaw);
-        
-        printf("===== 角速度 =====\r\n");
-        printf("GX: %.2f  GY: %.2f  GZ: %.2f (°/s)\r\n", 
-               temp_sensor.gyro.GYRO_X, 
-               temp_sensor.gyro.GYRO_Y, 
-               temp_sensor.gyro.GYRO_Z);
-        
-        printf("===== 电机输出 =====\r\n");
-        printf("M1: %.0f  M2: %.0f  M3: %.0f  M4: %.0f\r\n", 
-               temp_motor.m1, 
-               temp_motor.m2, 
-               temp_motor.m3, 
-               temp_motor.m4);
-        
-        // 周期性等待
+        printf("\r\n===== Rocket Input =====\r\n");
+        printf("Throttle: %d  Roll: %d  Pitch: %d  Yaw: %d\r\n",
+               (int)temp_rocket.throttle,
+               (int)temp_rocket.roll_input,
+               (int)temp_rocket.pitch_input,
+               (int)temp_rocket.yaw_input);
+        printf("Armed: %s\r\n", temp_rocket.armed ? "YES" : "NO");
+
+        printf("===== Attitude Data =====\r\n");
+        printf("Pitch: %d deg  Roll: %d deg  Yaw: %d deg\r\n",
+               (int)temp_sensor.angle.Pitch,
+               (int)temp_sensor.angle.Roll,
+               (int)temp_sensor.angle.Yaw);
+
+        printf("===== Angular Velocity =====\r\n");
+        printf("GX: %d  GY: %d  GZ: %d (deg/s)\r\n",
+               (int)temp_sensor.gyro.GYRO_X,
+               (int)temp_sensor.gyro.GYRO_Y,
+               (int)temp_sensor.gyro.GYRO_Z);
+
+        printf("===== Motor Output =====\r\n");
+        printf("M1: %d  M2: %d  M3: %d  M4: %d\r\n",
+               (int)temp_motor.m1,
+               (int)temp_motor.m2,
+               (int)temp_motor.m3,
+               (int)temp_motor.m4);
+
+        /* S7: Battery voltage monitoring */
+        {
+            float bat_voltage = ADC_GetVoltage();
+            printf("===== Battery =====\r\n");
+            printf("Voltage: %.2f V\r\n", bat_voltage);
+            if (bat_voltage < BAT_LOW_THRESHOLD)
+            {
+                printf("[WARNING] Battery LOW! (%.2fV < %.1fV)\r\n",
+                       bat_voltage, (double)BAT_LOW_THRESHOLD);
+                /* Blink LED as low-battery warning */
+                LED_ON();
+                Delay_ms(100);
+                LED_OFF();
+            }
+        }
+
+        /* Periodic delay */
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
 
 /* =============================================================
- * 主函数
+ * IWDG initialization (S6)
+ * Timeout = IWDG_RELOAD_MS (500ms). If main loop or FreeRTOS
+ * hangs, IWDG resets the MCU -> motors stop immediately.
+ * ============================================================= */
+static void IWDG_InitLocal(void)
+{
+    IWDG_WriteAccessCmd(IWDG_WriteAccess_Enable);
+    IWDG_SetPrescaler(IWDG_Prescaler_64);
+    IWDG_SetReload((uint16_t)(IWDG_RELOAD_MS * 625 / 1000));
+    IWDG_ReloadCounter();
+    IWDG_Enable();
+}
+
+/* =============================================================
+ * Main function
  * ============================================================= */
 int main(void)
 {
-    /* 硬件初始化 */
+    /* Hardware init */
     UART_Init();
-    printf("系统启动...\r\n");
-    
-    /* NRF24L01初始化 - RX模式 */
-    printf("正在初始化NRF24L01...\r\n");
+
+    printf("System Startup...\r\n");
+
+    /* 中断优先级分组：4位抢占优先级 */
+    NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
+
+    /* NRF24L01 Initialization - RX Mode */
+    printf("Initializing NRF24L01...\r\n");
     NRF24_GPIO_SPI_Init();
     Delay_ms(100);
-    
+
     uint8_t nrf_addr[5] = {0x12, 0x34, 0x56, 0x78, 0x9A};  // 接收地址
     uint8_t nrf_channel = 40;  // 2.4GHz通道
-    
-    if(!NRF24_Check())
+
+    if (!NRF24_Check())
     {
-        printf("NRF24L01检测失败！\r\n");
-        while(1);
+        printf("NRF24L01 Check Failed!\r\n");
+        while (1);
     }
-    
-    if(!NRF24_SetMode(NRF24_MODE_RX, nrf_addr, nrf_channel, NRF24_PAYLOAD_SIZE))
+
+    if (!NRF24_SetMode(NRF24_MODE_RX, nrf_addr, nrf_channel, NRF24_PAYLOAD_SIZE))
     {
-        printf("NRF24L01初始化失败！\r\n");
-        while(1);
+        printf("NRF24L01 Initialization Failed!\r\n");
+        while (1);
     }
-    printf("NRF24L01初始化成功，等待遥控信号...\r\n");
-    
-    /* MPU6050初始化 */
-    printf("正在校准陀螺仪...\r\n");
-    if(MPU6050_GyroCalibrate(50) == 0)
+    printf("NRF24L01 Initialized Successfully, Waiting For RC Signal...\r\n");
+
+    /* 创建 NRF24 中断信号量 */
+    xNrf24Semaphore = xSemaphoreCreateBinary();
+    if (xNrf24Semaphore == NULL)
     {
-        printf("陀螺仪校准失败！\r\n");
-        while(1);
+        printf("NRF24 Semaphore Creation Failed!\r\n");
+        while (1);
     }
-    
-    printf("正在初始化MPU6050...\r\n");
-    if(MPU6050_Init() == 0)
+
+    /* 初始化 NRF24 IRQ 中断 (PB0) */
+    if (!NRF24_IRQ_Init())
     {
-        printf("MPU6050初始化失败！\r\n");
-        while(1);
+        printf("NRF24 IRQ Init Failed!\r\n");
+        while (1);
     }
-    
-    /* 飞行控制初始化 */
+
+    /* MPU6050 Initialization */
+    printf("Calibrating Gyroscope...\r\n");
+    if (MPU6050_GyroCalibrate(50) == 0)
+    {
+        printf("Gyro Calibration Failed!\r\n");
+        while (1);
+    }
+
+    printf("Initializing MPU6050...\r\n");
+    if (MPU6050_Init() == 0)
+    {
+        printf("MPU6050 Initialization Failed!\r\n");
+        while (1);
+    }
+
+    /* Enable Mahony Ki for online gyro bias estimation (was 0.0) */
+    MPU6050_SetMahonyKi(0.02f);
+    printf("Mahony Ki enabled (0.02) for gyro bias correction\r\n");
+
+    printf("Initializing MPU6050 Interrupt (PB4)...\r\n");
+    if (MPU6050_INT_Init() == 0)
+    {
+        printf("MPU6050 Interrupt Initialization Failed!\r\n");
+        while (1);
+    }
+
+    /* PWM init */
+    PWM_Init();
+
+    /* Flight control init */
     Fly_Init();
-    printf("飞行控制初始化完成\r\n");
-    
-    /* 创建同步原语 */
-    sensor_semaphore = xSemaphoreCreateBinary();
-    motor_mutex = xSemaphoreCreateMutex();
-    sensor_mutex = xSemaphoreCreateMutex();
-    rocket_mutex = xSemaphoreCreateMutex();
-    
-    if(sensor_semaphore == NULL || motor_mutex == NULL || sensor_mutex == NULL || rocket_mutex == NULL)
+    printf("Flight control initialized\r\n");
+
+    /* IWDG init (S6): must be started BEFORE scheduler */
+    IWDG_InitLocal();
+    printf("IWDG started (500ms timeout)\r\n");
+
+    /* Power-on safety check (S8): verify throttle at zero before starting */
+    printf("[SAFETY] Power-on check: ensure throttle at zero and disarmed before flight\r\n");
+
+    /* 创建通信队列 */
+    sensor_queue = xQueueCreate(2, sizeof(SensorData_t));  // 传感器数据队列
+    rocket_queue = xQueueCreate(2, sizeof(RocketInput_t));  // 摇杆数据队列
+    motor_queue = xQueueCreate(1, sizeof(Motor_Out));       // 电机输出队列
+
+    if (sensor_queue == NULL || rocket_queue == NULL || motor_queue == NULL)
     {
-        printf("创建同步原语失败！\r\n");
-        while(1);
+        printf("Queue creation failed!\r\n");
+        while (1);
     }
-    
-    /* 创建任务 */
-    if(xTaskCreate(Rocket_Control_Task, 
-                   "RocketCtrl", 
-                   SENSOR_TASK_STACK_SIZE, 
-                   NULL, 
-                   ROCKET_TASK_PRIORITY, 
+
+    /* 创建传感器读取的信号量 */
+    xMpuSemaphore = xSemaphoreCreateBinary();
+
+    /* Create Tasks */
+    if (xTaskCreate(Rocket_Control_Task,
+                   "RocketCtrl",
+                   ROCKET_TASK_STACK_SIZE,
+                   NULL,
+                   ROCKET_TASK_PRIORITY,
                    NULL) != pdPASS)
     {
-        printf("创建摇杆控制任务失败！\r\n");
-        while(1);
+        printf("Rocket Control Task Creation Failed!\r\n");
+        while (1);
     }
-    
-    if(xTaskCreate(Fly_Control_Task, 
-                   "FlightCtrl", 
-                   CTRL_TASK_STACK_SIZE, 
-                   NULL, 
-                   CTRL_TASK_PRIORITY, 
+
+    if (xTaskCreate(Fly_Control_Task,
+                   "FlightCtrl",
+                   CTRL_TASK_STACK_SIZE,
+                   NULL,
+                   CTRL_TASK_PRIORITY,
                    NULL) != pdPASS)
     {
-        printf("创建飞行控制任务失败！\r\n");
-        while(1);
+        printf("Flight Control Task Creation Failed!\r\n");
+        while (1);
     }
-    
-    if(xTaskCreate(Sensor_Read_Task, 
-                   "SensorRead", 
-                   SENSOR_TASK_STACK_SIZE, 
-                   NULL, 
-                   SENSOR_TASK_PRIORITY, 
+
+    if (xTaskCreate(Sensor_Read_Task,
+                   "SensorRead",
+                   SENSOR_TASK_STACK_SIZE,
+                   NULL,
+                   SENSOR_TASK_PRIORITY,
                    NULL) != pdPASS)
     {
-        printf("创建传感器任务失败！\r\n");
-        while(1);
+        printf("Sensor Read Task Creation Failed!\r\n");
+        while (1);
     }
-    
-    if(xTaskCreate(Monitor_Task, 
-                   "Monitor", 
-                   MONITOR_TASK_STACK_SIZE, 
-                   NULL, 
-                   MONITOR_TASK_PRIORITY, 
+
+    if (xTaskCreate(Monitor_Task,
+                   "Monitor",
+                   MONITOR_TASK_STACK_SIZE,
+                   NULL,
+                   MONITOR_TASK_PRIORITY,
                    NULL) != pdPASS)
     {
-        printf("创建监测任务失败！\r\n");
-        while(1);
+        printf("Monitor Task Creation Failed!\r\n");
+        while (1);
     }
-    
-    printf("启动FreeRTOS调度器...\r\n");
-    
-    /* 启动FreeRTOS调度器 */
+
+    if (xTaskCreate(CLI_Task,
+                   "CLI",
+                   CLI_TASK_STACK_SIZE,
+                   NULL,
+                   CLI_TASK_PRIORITY,
+                   NULL) != pdPASS)
+    {
+        printf("CLI Task Creation Failed!\r\n");
+        while (1);
+    }
+
+    if (xTaskCreate(LOG_Task,
+                   "Logger",
+                   LOGGER_TASK_STACK_SIZE,
+                   NULL,
+                   LOGGER_TASK_PRIORITY,
+                   NULL) != pdPASS)
+    {
+        printf("Logger Task Creation Failed!\r\n");
+        while (1);
+    }
+
+    printf("Starting FreeRTOS Scheduler...\r\n");
+
+    /* Start FreeRTOS Scheduler */
     vTaskStartScheduler();
-    
-    /* 如果程序运行到这里说明内存不足 */
-    printf("启动失败！\r\n");
-    while(1);
+
+    /* If execution reaches here, it means insufficient memory */
+    printf("Startup Failed!\r\n");
+    while (1);
 }

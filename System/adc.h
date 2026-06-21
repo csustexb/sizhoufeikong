@@ -1,5 +1,5 @@
-#ifndef __ADC_H
-#define __ADC_H
+#ifndef ADC_H
+#define ADC_H
 
 #include "stm32f10x.h"                  // Device header
 

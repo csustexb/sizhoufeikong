@@ -29,3 +29,4 @@
 .\objects\pid.o: .\library\stm32f10x_usart.h
 .\objects\pid.o: .\library\stm32f10x_wwdg.h
 .\objects\pid.o: .\library\misc.h
+.\objects\pid.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stddef.h

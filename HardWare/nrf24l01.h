@@ -1,14 +1,16 @@
-#ifndef __NRF24L01_H
-#define __NRF24L01_H
+#ifndef NRF24L01_H
+#define NRF24L01_H
 
 #include "stm32f10x.h"
 #include <stdint.h>
+#include "FreeRTOS.h"
+#include "semphr.h"
 
 /* =========================
    用户可修改的引脚定义
    ========================= */
 #define NRF24_CE_PORT       GPIOA
-#define NRF24_CE_PIN        GPIO_Pin_2
+#define NRF24_CE_PIN        GPIO_Pin_1
 
 #define NRF24_CSN_PORT      GPIOA
 #define NRF24_CSN_PIN       GPIO_Pin_4
@@ -119,6 +121,10 @@ uint8_t NRF24_SetMode(uint8_t mode, const uint8_t *addr, uint8_t channel, uint8_
 uint8_t NRF24_SendPacket(const uint8_t *data, uint8_t len);
 uint8_t NRF24_IsDataReady(void);
 uint8_t NRF24_ReceivePacket(uint8_t *data, uint8_t len);
+
+/* 中断驱动接口 */
+extern SemaphoreHandle_t xNrf24Semaphore;
+uint8_t NRF24_IRQ_Init(void);
 
 /* =========================
    遥控应用层接口

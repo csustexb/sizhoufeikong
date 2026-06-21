@@ -18,10 +18,12 @@ I2C在空闲的时候，SCL和SDA都是高电平，所以每次操作之后都�
 
 #define I2C_SCL_PIN       6
 #define I2C_SDA_PIN       7
-
-#define I2C_SCL_PIN_MASK  (1U << I2C_SCL_PIN)
-#define I2C_SDA_PIN_MASK  (1U << I2C_SDA_PIN)
-
+// SDA 和 SCL 
+#define I2C_SCL_PIN_MASK  (1U << I2C_SCL_PIN)//0x40
+#define I2C_SDA_PIN_MASK  (1U << I2C_SDA_PIN)//0x80
+// BSRR	端口位设置/复位寄存器	写1到低16位对应引脚输出高电平；写1到高16位对应引脚输出低电平。写0无影响。
+// BRR	端口位复位寄存器	写1到相应位将引脚拉低。写0无影响。
+// IDR	端口输入数据寄存器	只读，某位为1表示对应引脚输入为高电平，0为低电平。
 /* 电平控制 */
 #define SDA_High()    (I2C_PORT->BSRR = I2C_SDA_PIN_MASK)
 #define SDA_Low()     (I2C_PORT->BRR  = I2C_SDA_PIN_MASK)
@@ -30,7 +32,7 @@ I2C在空闲的时候，SCL和SDA都是高电平，所以每次操作之后都�
 #define SCL_Low()     (I2C_PORT->BRR  = I2C_SCL_PIN_MASK)
 
 #define SDA_Read()    ((I2C_PORT->IDR & I2C_SDA_PIN_MASK) ? 1 : 0)
-#define SCL_Read()    ((I2C_PORT->IDR & I2C_SCL_PIN_MASK) ? 1 : 0)0)
+#define SCL_Read()    ((I2C_PORT->IDR & I2C_SCL_PIN_MASK) ? 1 : 0)
 
 void Soft_SCL_OutPut(void);
 void Soft_SDA_OutPut(void);
